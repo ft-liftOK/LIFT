@@ -6909,39 +6909,48 @@ function assignRenderDay(dayData) {
 }
 
 function assignExerciseBlockHTML(ex = {}, ei = 0) {
+  // Reusar seriesRowHTML del editor normal para consistencia
   const seriesRows = (ex.seriesBlocks || [{series:'3', reps:'10', rir:'RIR 2', pct:''}])
     .map((sb, si) => assignSeriesRowHTML(sb, ei, si)).join('');
   const notasVal = (ex.notas || '').replace(/"/g, '&quot;');
+
+  // Opciones de descanso — igual que el editor normal
+  const restOpts = ['15','30','45','60','75','90','105','120','135','150','165','180'];
+  const restSelects = restOpts.map(v =>
+    `<option ${(ex.rest||'90')===v?'selected':''}>${v}s</option>`
+  ).join('');
+
   return `<div class="ex-block" id="assign-exblock-${ei}">
     <div class="ex-block-header">
       <span class="badge badge-lime">${ei + 1}</span>
       <input type="text" placeholder="Nombre del ejercicio..." value="${ex.name || ''}"
-        class="ex-name" />
+        class="ex-name" style="flex:1" />
       <button type="button" class="btn btn-ghost btn-sm"
         style="white-space:nowrap;padding:6px 10px;font-size:12px"
-        onclick="this.closest('.ex-block').remove();reassignExBlockIndices()">🗑️</button>
-    </div>
-    <div class="ex-meta-row">
-      <div class="form-group" style="margin:0">
-        <label>Descanso (seg)</label>
-        <input type="number" class="ex-rest" value="${ex.rest || '90'}" min="0" max="600" />
+        onclick="openAssignLibPicker(this)" title="Buscar en biblioteca">📚</button>
+      <div class="form-group" style="margin:0;min-width:90px">
+        <label style="margin-bottom:3px">Descanso</label>
+        <select class="ex-rest">${restSelects}</select>
       </div>
-      <div class="form-group" style="margin:0;flex:2">
-        <label>Notas / Técnica</label>
-        <input type="text" class="ex-notas" placeholder="Técnica, ángulo, observaciones..."
-          value="${notasVal}" />
-      </div>
+      <button class="btn-icon" style="align-self:flex-end"
+        onclick="this.closest('.ex-block').remove();reassignExBlockIndices()">✕</button>
     </div>
-    <div class="series-table">
-      <div class="series-header">
-        <span>Series</span><span>Reps</span><span>RIR</span><span>%1RM</span><span></span>
-      </div>
-      <div class="series-rows-container">${seriesRows}</div>
+    <div class="series-row-header">
+      <span>Series</span><span>Repeticiones</span><span>RIR / Fallo</span><span>% 1RM</span><span></span>
     </div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:6px"
-      onclick="assignAddSeriesRow(this)">+ Serie</button>
+    <div class="series-container">${seriesRows}</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:6px;font-size:11px"
+      onclick="assignAddSeriesRowToBlock(this)">+ Agregar bloque de series</button>
+    <div style="margin-top:10px">
+      <label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">
+        Notas del ejercicio
+      </label>
+      <textarea class="ex-notas" placeholder="Ej: Codos a 45°, no hiperextender, agarre prono..."
+        style="margin-top:4px;min-height:56px;font-size:13px">${notasVal}</textarea>
+    </div>
   </div>`;
 }
+
 
 function assignSeriesRowHTML(sb = {}, ei = 0, si = 0) {
   return `<div class="series-row">
@@ -6954,16 +6963,23 @@ function assignSeriesRowHTML(sb = {}, ei = 0, si = 0) {
     </select>
     <input class="sb-pct" type="text" value="${sb.pct || ''}" placeholder="%" />
     <button type="button" onclick="this.closest('.series-row').remove()"
-      class="btn btn-ghost btn-sm" style="padding:4px 8px">✕</button>
+      class="btn btn-icon" style="padding:4px 8px">✕</button>
   </div>`;
 }
 
+
 function assignAddSeriesRow(btn) {
-  const container = btn.previousElementSibling.querySelector('.series-rows-container');
+  // Compatibilidad con ambos nombres de container
+  const block = btn.closest('.ex-block');
+  const container = block ? (block.querySelector('.series-container') || block.querySelector('.series-rows-container')) : null;
   if(!container) return;
-  const ei = parseInt(btn.closest('.ex-block').id.replace('assign-exblock-', '')) || 0;
+  const ei = parseInt(block.id.replace('assign-exblock-', '')) || 0;
   const si = container.children.length;
   container.insertAdjacentHTML('beforeend', assignSeriesRowHTML({}, ei, si));
+}
+
+function assignAddSeriesRowToBlock(btn) {
+  assignAddSeriesRow(btn);
 }
 
 function assignAddExerciseBlock() {
@@ -6987,7 +7003,7 @@ function assignSaveDayToCache() {
   blocks.forEach(block => {
     const name = block.querySelector('.ex-name')?.value?.trim();
     if(!name) return;
-    const rest  = block.querySelector('.ex-rest')?.value  || '90';
+    const restEl = block.querySelector('.ex-rest'); const rest = restEl ? restEl.value.replace('s','') : '90';
     const notas = block.querySelector('.ex-notas')?.value || '';
     const seriesBlocks = [];
     block.querySelectorAll('.series-row').forEach(row => {
@@ -7079,6 +7095,25 @@ function openAssignRoutineForCurrent() {
   const cl = window._coachClients?.[uid];
   const name = cl ? ((cl.name||'').trim() || cl.email) : uid;
   openAssignRoutine(uid, name);
+}
+
+
+function openAssignLibPicker(btn) {
+  // Guardar el input del bloque en _libPickerTargetInput
+  const block = btn.closest('.ex-block');
+  _libPickerTargetInput = block ? block.querySelector('.ex-name') : null;
+  // Marcar que estamos en modo assign (no routine editor)
+  window._assignLibPickerMode = true;
+  _libPickerActiveGroup = 'Todos';
+  const searchEl = document.getElementById('lib-picker-search');
+  if(searchEl) searchEl.value = '';
+  renderLibPickerTabs();
+  renderLibPickerList();
+  const picker = document.getElementById('modal-library-picker');
+  if(picker) {
+    picker.style.display = 'flex';
+    picker.style.zIndex  = '5000'; // Encima del modal assign (z-index:4000)
+  }
 }
 
 
