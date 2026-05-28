@@ -1336,7 +1336,7 @@ textarea { resize: vertical; min-height: 80px; }
   </div>
 </div>
 <!-- MODAL ASIGNACIÓN DE RUTINA AL CLIENTE -->
-<div id="modal-assign-routine" class="modal-overlay" style="display:none">
+<div id="modal-assign-routine" class="modal-overlay" style="display:none;z-index:4000">
   <div class="modal" style="max-width:800px">
     <div class="modal-header">
       <div>
@@ -6813,7 +6813,9 @@ function openAssignRoutine(clientUid, clientName, editRoutineId = null) {
   _assignDayCache  = {};
   _assignEditId    = editRoutineId;
 
-  // Mostrar modal primero
+  // Ocultar modal-client-detail temporalmente y mostrar assign
+  const clientModal = document.getElementById('modal-client-detail');
+  if(clientModal) clientModal.style.display = 'none';
   const modal = document.getElementById('modal-assign-routine');
   if(!modal) { alert('Error: modal no encontrado'); return; }
   modal.style.display = 'flex';
@@ -6853,6 +6855,9 @@ function openAssignRoutine(clientUid, clientName, editRoutineId = null) {
 
 function closeAssignRoutine() {
   document.getElementById('modal-assign-routine').style.display = 'none';
+  // Restaurar modal-client-detail
+  const clientModal = document.getElementById('modal-client-detail');
+  if(clientModal) clientModal.style.display = 'flex';
   _assignTargetUid = null;
   _assignDayIdx    = 0;
   _assignDayCache  = {};
