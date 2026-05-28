@@ -471,7 +471,7 @@ textarea { resize: vertical; min-height: 80px; }
 
       // FIRESTORE — datos del usuario
       saveUserData: (uid, data) =>
-        setDoc(doc(fbDb, 'users', uid), data, { merge: true }),
+        setDoc(doc(fbDb, 'users', uid), data),
 
       getUserData: (uid) =>
         getDoc(doc(fbDb, 'users', uid))
@@ -7054,69 +7054,78 @@ function saveAssignRoutine() {
 
   assignSaveDayToCache();
 
-  const name     = document.getElementById('assign-r-name').value.trim();
-  const protocol = document.getElementById('assign-r-protocol').value;
-  const nDays    = parseInt(document.getElementById('assign-r-days').value);
+  const name      = document.getElementById('assign-r-name').value.trim();
+  const protocol  = document.getElementById('assign-r-protocol').value;
+  const nDays     = parseInt(document.getElementById('assign-r-days').value);
 
   if(!name) { alert('Poné un nombre al entrenamiento.'); return; }
 
-  // Construir días
+  // Confirmar antes de enviar
+  if(!confirm('¿Asignar el entrenamiento "' + name + '" al cliente?')) return;
+
+  // Guardar UID y editId en variables locales ANTES de cerrar el modal
+  const targetUid  = _assignTargetUid;
+  const editId     = _assignEditId;
+  const routineId  = editId || ('r_coach_' + Date.now());
+
+  // Construir días desde cache
   const days = [];
   for(let i = 0; i < nDays; i++) {
     days.push(_assignDayCache[i] || { muscle:'', exercises:[] });
   }
 
   const newRoutine = {
-    id: _assignEditId || ('r_coach_' + Date.now()),
+    id: routineId,
     name, protocol, days,
     createdAt: Date.now(),
     assignedByCoach: true,
     assignedAt: new Date().toISOString(),
   };
 
-  // Mostrar feedback inmediato
+  // Cerrar modal (después de guardar variables locales)
   closeAssignRoutine();
 
-  // Leer datos actuales del cliente desde Firebase y agregar la rutina
-  if(window._fb) {
-    window._fb.getUserData(_assignTargetUid)
-      .then(clientData => {
-        if(!clientData) clientData = {
-          routines:[], loads:{}, history:[],
-          anamnesis:null, settings:{}, sportFiles:[], plan:'free'
-        };
-        if(!clientData.routines) clientData.routines = [];
-
-        if(_assignEditId) {
-          const idx = clientData.routines.findIndex(x => x.id === _assignEditId);
-          if(idx >= 0) clientData.routines[idx] = newRoutine;
-          else clientData.routines.push(newRoutine);
-        } else {
-          clientData.routines.push(newRoutine);
-        }
-
-        // Guardar en Firebase con merge
-        return window._fb.saveUserData(_assignTargetUid, clientData)
-          .then(() => clientData);
-      })
-      .then(clientData => {
-        // Actualizar cache local del coach
-        if(window._coachClients?.[_assignTargetUid]) {
-          window._coachClients[_assignTargetUid].routines = clientData.routines;
-        }
-        alert('✅ Entrenamiento "' + name + '" asignado a tu cliente. Ya puede verlo en la app.');
-        // Recargar panel
-        window._fb.getAllUsers().then(users => {
-          _renderCoachClients(users, Object.keys(users));
-        });
-      })
-      .catch(err => {
-        console.error('Error asignando rutina:', err);
-        alert('❌ Error al guardar el entrenamiento. Verificá tu conexión e intentá de nuevo.');
-      });
-  } else {
-    alert('❌ Firebase no disponible. Verificá tu conexión.');
+  if(!window._fb) {
+    alert('❌ Firebase no disponible.');
+    return;
   }
+
+  // 1. Leer datos actuales del cliente desde Firebase
+  window._fb.getUserData(targetUid)
+    .then(function(clientData) {
+      if(!clientData) {
+        clientData = { routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[], plan:'free' };
+      }
+      if(!Array.isArray(clientData.routines)) clientData.routines = [];
+
+      // 2. Agregar o reemplazar rutina
+      if(editId) {
+        var idx2 = clientData.routines.findIndex(function(x){ return x.id === editId; });
+        if(idx2 >= 0) clientData.routines[idx2] = newRoutine;
+        else clientData.routines.push(newRoutine);
+      } else {
+        clientData.routines.push(newRoutine);
+      }
+
+      // 3. Guardar documento completo en Firestore (sin merge para evitar problemas)
+      return window._fb.saveUserData(targetUid, clientData)
+        .then(function() { return clientData; });
+    })
+    .then(function(clientData) {
+      // 4. Actualizar cache del coach
+      if(window._coachClients && window._coachClients[targetUid]) {
+        window._coachClients[targetUid].routines = clientData.routines;
+      }
+      alert('✅ Entrenamiento "' + name + '" asignado. El cliente ya puede verlo en su app.');
+      // 5. Recargar panel coach
+      window._fb.getAllUsers().then(function(users) {
+        _renderCoachClients(users, Object.keys(users));
+      });
+    })
+    .catch(function(err) {
+      console.error('Error asignando rutina:', err);
+      alert('❌ Error: ' + (err.message || 'No se pudo guardar. Verificá tu conexión.'));
+    });
 }
 
 
