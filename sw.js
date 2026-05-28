@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lift86-v39';
+const CACHE_NAME = 'lift86-v40';
 const ASSETS = [
   '/LIFT/',
   '/LIFT/index.html',

@@ -3383,11 +3383,76 @@ function openClientDetail(uid) {
     ? `<img src="${cl.profilePhoto}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid ${pc.color}">`
     : `<div style="width:72px;height:72px;border-radius:50%;background:${pc.color};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#000">${initials}</div>`;
 
-  const lastSessions = [...(cl.hist||[])].reverse().slice(0,5);
+  const lastSessions = [...(cl.hist||[])].reverse().slice(0,10);
   const histHtml = lastSessions.length ? lastSessions.map(h => {
-    const date = new Date(h.ts||h.date||0).toLocaleDateString('es-AR');
-    const ton  = Math.round(h.totalTonelaje||0);
-    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--text)">${date}</span><span style="color:var(--text-muted)">${ton>0?ton+'kg ton.':'—'}</span></div>`;
+    const date     = new Date(h.ts||h.date||0).toLocaleDateString('es-AR');
+    const time     = new Date(h.ts||h.date||0).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    const m        = h.metrics || {};
+    const dur      = h.duration ? Math.floor(h.duration/60)+'min' : '—';
+    const ton      = m.tonelaje || Math.round(h.totalTonelaje||0);
+    const reps     = m.totalReps || 0;
+    const pesoMed  = m.pesoMedio || 0;
+    const done     = m.done || 0;
+    const total    = m.total || 0;
+    const pct      = total > 0 ? Math.round((done/total)*100) : 0;
+    const pctColor = pct >= 90 ? 'var(--lime)' : pct >= 70 ? '#FF9800' : '#e74c3c';
+
+    // Detalles por ejercicio
+    const routine = (cl.routines||[]).find(r => r.id === h.routineId);
+    const exercises = routine?.days?.[h.dayIdx]?.exercises || [];
+    const exerciseRows = exercises.map((ex, ei) => {
+      const exSets = h.sets?.[ei] || [];
+      const doneSets = exSets.filter(s => s.done);
+      const maxKg = doneSets.length ? Math.max(...doneSets.map(s=>parseFloat(s.weight)||0)) : 0;
+      const totalExReps = doneSets.reduce((a,s)=>a+(parseFloat(s.realReps||s.reps)||0),0);
+      const completed = doneSets.length + '/' + exSets.length;
+      const completedColor = doneSets.length === exSets.length ? 'var(--lime)' : '#FF9800';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px">
+        <span style="color:${completedColor};font-weight:700;flex-shrink:0;width:30px">${completed}</span>
+        <span style="flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ex.name||'—'}</span>
+        <span style="color:var(--text-muted);flex-shrink:0">${maxKg>0?maxKg+'kg':'—'}</span>
+        <span style="color:var(--text-muted);flex-shrink:0">${totalExReps>0?totalExReps+' reps':'—'}</span>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:var(--surface3);border-radius:10px;margin-bottom:8px;overflow:hidden;border:1px solid var(--border)">
+      <!-- Header sesión -->
+      <div style="padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:8px"
+        onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${h.routineName||'Sesión'} — Día ${(h.dayIdx||0)+1}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date} · ${time} · ${h.dayMuscle||''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:13px;font-weight:800;color:${pctColor}">${pct}%</div>
+          <div style="font-size:10px;color:var(--text-muted)">${done}/${total} series</div>
+        </div>
+        <span style="color:var(--text-muted);font-size:12px">▾</span>
+      </div>
+      <!-- Stats rápidos -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)">
+        ${[
+          {l:'Duración', v:dur},
+          {l:'Tonelaje', v:ton>0?ton+'kg':'—'},
+          {l:'Reps tot.', v:reps>0?reps:'—'},
+          {l:'Peso med.', v:pesoMed>0?pesoMed+'kg':'—'},
+        ].map(s=>`<div style="background:var(--surface2);padding:6px 4px;text-align:center">
+          <div style="font-size:9px;color:var(--text-dim)">${s.l}</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">${s.v}</div>
+        </div>`).join('')}
+      </div>
+      <!-- Detalle ejercicios (colapsable) -->
+      <div style="display:none;padding:8px 12px">
+        <div style="display:flex;gap:6px;font-size:9px;color:var(--text-dim);padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:4px">
+          <span style="width:30px">Series</span>
+          <span style="flex:1">Ejercicio</span>
+          <span>Máx</span>
+          <span style="margin-left:6px">Reps</span>
+        </div>
+        ${exerciseRows || '<div style="font-size:11px;color:var(--text-muted)">Sin detalle disponible.</div>'}
+        ${h.comments?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);font-style:italic">💬 "${h.comments}"</div>`:''}
+      </div>
+    </div>`;
   }).join('') : '<div style="font-size:12px;color:var(--text-muted)">Sin sesiones registradas.</div>';
 
   const routinesHtml = cl.routines.length ? cl.routines.map(r =>
@@ -3453,7 +3518,10 @@ function openClientDetail(uid) {
       ${routinesHtml}
     </div>
     <div style="background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:1rem;border:1px solid var(--border)">
-      <div style="font-size:10px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">📅 Últimas sesiones</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em">📅 Historial de sesiones</div>
+        <span style="font-size:11px;color:var(--text-muted)">${cl.hist.length} total</span>
+      </div>
       ${histHtml}
     </div>
     <div style="background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:1rem;border:1px solid var(--border)">
