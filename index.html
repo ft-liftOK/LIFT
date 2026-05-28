@@ -7036,55 +7036,56 @@ function saveAssignRoutine() {
     days.push(_assignDayCache[i] || { muscle:'', exercises:[] });
   }
 
-  // Cargar datos del cliente
-  let clientData = getStore('lift86_data_' + _assignTargetUid) || {
-    routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[], plan:'free'
+  const newRoutine = {
+    id: _assignEditId || ('r_coach_' + Date.now()),
+    name, protocol, days,
+    createdAt: Date.now(),
+    assignedByCoach: true,
+    assignedAt: new Date().toISOString(),
   };
-  if(!clientData.routines) clientData.routines = [];
 
-  if(_assignEditId) {
-    // Editar rutina existente
-    const r = clientData.routines.find(x => x.id === _assignEditId);
-    if(r) { r.name = name; r.protocol = protocol; r.days = days; r.assignedByCoach = true; }
-  } else {
-    // Nueva rutina
-    clientData.routines.push({
-      id: 'r_coach_' + Date.now(),
-      name,
-      protocol,
-      days,
-      createdAt: Date.now(),
-      assignedByCoach: true,
-      assignedAt: new Date().toISOString(),
-    });
-  }
-
-  // Guardar en localStorage local (el cliente lo verá en su Firebase)
-  setStore('lift86_data_' + _assignTargetUid, clientData);
-
-  // Si Firebase está disponible, guardar en Firestore del cliente
-  if(window._fb) {
-    window._fb.saveUserData(_assignTargetUid, clientData)
-      .then(() => {
-        console.log('Rutina guardada en Firebase del cliente');
-      })
-      .catch(e => console.warn('Firebase save error:', e));
-  }
-
+  // Mostrar feedback inmediato
   closeAssignRoutine();
 
-  // Actualizar vista del cliente si está abierta
-  if(window._coachClients?.[_assignTargetUid]) {
-    window._coachClients[_assignTargetUid].routines = clientData.routines;
-  }
-
-  alert('✅ Entrenamiento "' + name + '" asignado correctamente al cliente.');
-
-  // Recargar panel coach
+  // Leer datos actuales del cliente desde Firebase y agregar la rutina
   if(window._fb) {
-    window._fb.getAllUsers().then(users => {
-      _renderCoachClients(users, Object.keys(users));
-    });
+    window._fb.getUserData(_assignTargetUid)
+      .then(clientData => {
+        if(!clientData) clientData = {
+          routines:[], loads:{}, history:[],
+          anamnesis:null, settings:{}, sportFiles:[], plan:'free'
+        };
+        if(!clientData.routines) clientData.routines = [];
+
+        if(_assignEditId) {
+          const idx = clientData.routines.findIndex(x => x.id === _assignEditId);
+          if(idx >= 0) clientData.routines[idx] = newRoutine;
+          else clientData.routines.push(newRoutine);
+        } else {
+          clientData.routines.push(newRoutine);
+        }
+
+        // Guardar en Firebase con merge
+        return window._fb.saveUserData(_assignTargetUid, clientData)
+          .then(() => clientData);
+      })
+      .then(clientData => {
+        // Actualizar cache local del coach
+        if(window._coachClients?.[_assignTargetUid]) {
+          window._coachClients[_assignTargetUid].routines = clientData.routines;
+        }
+        alert('✅ Entrenamiento "' + name + '" asignado a tu cliente. Ya puede verlo en la app.');
+        // Recargar panel
+        window._fb.getAllUsers().then(users => {
+          _renderCoachClients(users, Object.keys(users));
+        });
+      })
+      .catch(err => {
+        console.error('Error asignando rutina:', err);
+        alert('❌ Error al guardar el entrenamiento. Verificá tu conexión e intentá de nuevo.');
+      });
+  } else {
+    alert('❌ Firebase no disponible. Verificá tu conexión.');
   }
 }
 
