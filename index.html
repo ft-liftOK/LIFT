@@ -3269,8 +3269,11 @@ function renderProgressChart() {
 function _renderCoachClients(users, uids) {
   const clients = uids.map(uid => {
     const u = users[uid] || {};
+    // Usar datos de Firebase (users object) como fuente principal
+    // Firebase getAllUsers() devuelve el documento completo con plan, routines, etc.
     const d = (uid === (window.currentUser?.uid) && window._userData)
-      ? window._userData : (getStore('lift86_data_' + uid) || {});
+      ? window._userData
+      : (Object.keys(u).length > 3 ? u : (getStore('lift86_data_' + uid) || u));
     const hist     = d.history  || [];
     const routines = d.routines || [];
     const loads    = d.loads    || {};
