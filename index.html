@@ -1817,6 +1817,7 @@ function renderRoutines(){
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${r.days.map((d,i)=>`<span class="tag">Día ${i+1}: ${d.muscle||'—'}</span>`).join('')}</div>
       </div>
       <div class="routine-actions">
+        <button class="btn btn-ghost btn-sm" onclick="viewRoutine('${r.id}')">👁 Ver</button>
         <button class="btn btn-ghost btn-sm" onclick="editRoutine('${r.id}')">✏️ Editar</button>
         <button class="btn btn-primary btn-sm" onclick="startWorkout('${r.id}')">⚡ Entrenar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRoutine('${r.id}')">🗑️</button>
@@ -1838,6 +1839,91 @@ function openRoutineEditor(id=null){
 function closeRoutineModal(){document.getElementById('modal-routine').style.display='none';}
 function editRoutine(id){openRoutineEditor(id);}
 function deleteRoutine(id){if(!confirm('¿Eliminar este entrenamiento?'))return;const d=getUserData(currentUser.uid);d.routines=d.routines.filter(r=>r.id!==id);setUserData(currentUser.uid,d);renderRoutines();}
+
+function viewRoutine(id) {
+  const d = getUserData(currentUser.uid);
+  const r = d.routines.find(x => x.id === id);
+  if(!r) return;
+
+  // Construir HTML de vista detallada
+  const daysHtml = r.days.map((day, di) => {
+    if(!day.exercises || !day.exercises.length) return '';
+    const exHtml = day.exercises.map((ex, ei) => {
+      const blocksHtml = (ex.seriesBlocks || []).map(sb =>
+        `<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted);padding:3px 0">
+          <span style="background:rgba(200,230,58,0.1);color:var(--lime);border-radius:4px;padding:2px 7px;font-weight:700">${sb.series}×${sb.reps}</span>
+          <span>${sb.rir || ''}</span>
+          ${sb.pct ? `<span style="color:var(--text-dim)">${sb.pct}</span>` : ''}
+        </div>`
+      ).join('');
+      return `<div style="background:var(--surface3);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="background:var(--lime);color:#000;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">${ei+1}</span>
+          <span style="font-size:14px;font-weight:600;color:var(--text)">${ex.name}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto">⏱ ${ex.rest||90}s</span>
+        </div>
+        ${blocksHtml}
+        ${ex.notas ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-style:italic">📝 ${ex.notas}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:1.2rem">
+      <div style="font-size:11px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border-lime)">
+        📅 Día ${di+1}${day.muscle ? ' — ' + day.muscle : ''}
+      </div>
+      ${exHtml}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  // Crear modal de vista
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-view-routine';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:3000;overflow-y:auto;padding:1rem;display:flex;align-items:flex-start;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:16px;width:100%;max-width:680px;
+      border:1px solid var(--border);overflow:hidden;margin:auto">
+      <!-- Header -->
+      <div style="background:var(--surface2);padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);
+        display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;z-index:1">
+        <div style="min-width:0">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--lime);letter-spacing:0.05em;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+            ${r.protocol} · ${r.days.length} días · ${r.days.reduce((a,d)=>a+d.exercises.length,0)} ejercicios
+          </div>
+        </div>
+        <button onclick="document.getElementById('modal-view-routine').remove()"
+          style="background:var(--surface3);border:1px solid var(--border);color:var(--text);
+            border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0">
+          ✕ Cerrar
+        </button>
+      </div>
+      <!-- Contenido -->
+      <div style="padding:1.5rem">
+        ${daysHtml || '<div style="text-align:center;color:var(--text-muted);padding:2rem">Este entrenamiento no tiene ejercicios cargados.</div>'}
+      </div>
+      <!-- Footer -->
+      <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:8px">
+        <button onclick="document.getElementById('modal-view-routine').remove();editRoutine('${r.id}')"
+          style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+            border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">
+          ✏️ Editar
+        </button>
+        <button onclick="document.getElementById('modal-view-routine').remove();startWorkout('${r.id}')"
+          style="flex:1;background:var(--lime);border:none;color:#000;
+            border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">
+          ⚡ Entrenar
+        </button>
+      </div>
+    </div>`;
+
+  // Cerrar al hacer click en el overlay
+  overlay.addEventListener('click', function(e) {
+    if(e.target === overlay) overlay.remove();
+  });
+
+  document.body.appendChild(overlay);
+}
 
 function buildDayTabs(existingR=null){
   const n=parseInt(document.getElementById('r-days').value);
@@ -2060,6 +2146,13 @@ function rebuildWorkoutContent(){
   const finBtn=document.createElement('button');
   finBtn.className='btn btn-primary w-full';finBtn.textContent='🏁 Finalizar sesión';finBtn.style.marginTop='1rem';
   finBtn.onclick=showSessionComplete;content.appendChild(finBtn);
+
+  const cancelBtn=document.createElement('button');
+  cancelBtn.className='btn btn-danger w-full';
+  cancelBtn.textContent='✕ Cancelar entrenamiento';
+  cancelBtn.style.cssText='margin-top:8px;background:var(--red-bg);color:var(--red);border:1px solid rgba(226,75,74,0.3)';
+  cancelBtn.onclick=confirmCancelSession;
+  content.appendChild(cancelBtn);
 }
 
 
@@ -2161,6 +2254,13 @@ function loadWorkoutSession(start=false){
   finBtn.style.marginTop='1rem';
   finBtn.onclick=showSessionComplete;
   content.appendChild(finBtn);
+
+  const cancelBtnR=document.createElement('button');
+  cancelBtnR.className='btn btn-danger w-full';
+  cancelBtnR.textContent='✕ Cancelar entrenamiento';
+  cancelBtnR.style.cssText='margin-top:8px;background:var(--red-bg);color:var(--red);border:1px solid rgba(226,75,74,0.3)';
+  cancelBtnR.onclick=confirmCancelSession;
+  content.appendChild(cancelBtnR);
 }
 
 function updateSet(ei,si,field,val){if(activeSession)activeSession.sets[ei][si][field]=val;}
@@ -2242,6 +2342,34 @@ function finishSession(){
   }
   activeSession=null;
   navigateTo('history');
+}
+
+function confirmCancelSession() {
+  if(!activeSession) return;
+  const mins = Math.floor(workoutSeconds / 60);
+  const confirmed = confirm(
+    '⚠️ ¿Cancelar el entrenamiento en curso?\n\n' +
+    'Llevás ' + mins + ' minuto' + (mins !== 1 ? 's' : '') + ' entrenando.\n' +
+    'Si cancelás, la sesión NO se guardará en tu historial.\n\n' +
+    'Presioná Aceptar para CANCELAR o Cancelar para SEGUIR entrenando.'
+  );
+  if(!confirmed) return;
+
+  // Detener timers
+  clearInterval(workoutTimer);
+  if(restTimerInterval) clearInterval(restTimerInterval);
+  document.getElementById('rest-timer-overlay').classList.remove('show');
+
+  // Limpiar estado
+  activeSession = null;
+  workoutSeconds = 0;
+  document.getElementById('workout-timer').textContent = '00:00';
+  document.getElementById('workout-content').innerHTML = '';
+  const banner = document.getElementById('active-session-banner');
+  if(banner) banner.style.display = 'none';
+
+  showToast('Entrenamiento cancelado');
+  navigateTo('workout');
 }
 
 function showPRCelebration(prs) {
@@ -2541,7 +2669,7 @@ function renderAnamnesis(){
         '</div>' +
         '<div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:1.5rem;border-left:3px solid var(--lime);text-align:left;max-width:300px;margin-left:auto;margin-right:auto">' +
           '<div style="font-size:11px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Incluido en todos los planes pagos</div>' +
-          '<div style="font-size:12px;color:var(--text-muted)">✅ Plan Estándar · $35.000/mes<br>✅ Coaching Pro · $84.000/mes<br>✅ Premium · $140.000/mes</div>' +
+          '<div style="font-size:12px;color:var(--text-muted)">✅ Plan Estándar · $35.000/mes<br>✅ Coaching Pro · $84.999/mes<br>✅ Premium · $149.999/mes</div>' +
         '</div>' +
         '<button onclick="navigateTo(\'coaching\')" style="background:var(--lime);color:#000;font-weight:800;font-size:14px;padding:13px 28px;border-radius:12px;border:none;cursor:pointer;width:100%;max-width:280px">' +
           'Ver planes y activar →' +
@@ -5645,7 +5773,17 @@ function updateSessionBanner(page) {
     banner = document.createElement('div');
     banner.id = 'active-session-banner';
     banner.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);z-index:400;background:var(--surface);border:2px solid var(--lime);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.5);cursor:pointer;max-width:90vw;';
-    banner.innerHTML = `<span style="font-size:20px">⚡</span><div style="flex:1"><div style="font-size:11px;color:var(--lime);font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Sesión en curso</div><div id="banner-timer" style="font-family:'DM Mono',monospace;font-size:14px;color:var(--text)">00:00</div></div><span style="font-size:12px;color:var(--lime);font-weight:600">Volver →</span>`;
+    banner.innerHTML = `
+      <span style="font-size:20px">⚡</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--lime);font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Sesión en curso</div>
+        <div id="banner-timer" style="font-family:'DM Mono',monospace;font-size:14px;color:var(--text)">00:00</div>
+      </div>
+      <button onclick="event.stopPropagation();confirmCancelSession()"
+        style="background:var(--red-bg);color:var(--red);border:1px solid rgba(226,75,74,0.3);
+          border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;
+          white-space:nowrap;flex-shrink:0">✕ Cancelar</button>
+      <span style="font-size:12px;color:var(--lime);font-weight:600;white-space:nowrap;flex-shrink:0">Volver →</span>`;
     banner.onclick = () => navigateTo('workout');
     document.body.appendChild(banner);
     setInterval(()=>{
@@ -6082,7 +6220,7 @@ function _renderPlanCards() {
     {
       id: 'pro',
       name: 'Coaching Pro',
-      price_ars: '$84.000',
+      price_ars: '$84.999',
       price_usd: 'USD 60',
       color: '#C8E63A',
       bg: 'rgba(200,230,58,0.08)',
@@ -6104,7 +6242,7 @@ function _renderPlanCards() {
     {
       id: 'premium',
       name: 'Premium',
-      price_ars: '$140.000',
+      price_ars: '$149.999',
       price_usd: 'USD 100',
       color: '#FF9800',
       bg: 'rgba(255,152,0,0.08)',
