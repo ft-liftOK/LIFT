@@ -2223,7 +2223,14 @@ function finishSession(){
   const newPRs=detectPRs(activeSession.sets, exercises);
   if(document.getElementById('session-comments'))activeSession.savedComments=document.getElementById('session-comments').value||'';
   const sessionComments=activeSession.savedComments||'';
-  d.history.push({id:'h_'+Date.now(),ts:Date.now(),routineId:activeSession.routineId,routineName:activeSession.routineName,dayIdx:activeSession.dayIdx,dayMuscle:activeSession.dayMuscle,duration:workoutSeconds,sets:activeSession.sets,metrics:m,prs:newPRs,comments:sessionComments});
+  // Guardar nombres de ejercicios para que el panel coach los muestre
+  // aunque la rutina sea editada o eliminada más tarde
+  const _sessionExNames = {};
+  const _sessionRoutine = d.routines.find(x => x.id === activeSession.routineId);
+  const _sessionExercises = _sessionRoutine?.days?.[activeSession.dayIdx]?.exercises || [];
+  _sessionExercises.forEach((ex, i) => { if(ex.name) _sessionExNames[i] = ex.name; });
+
+  d.history.push({id:'h_'+Date.now(),ts:Date.now(),routineId:activeSession.routineId,routineName:activeSession.routineName,dayIdx:activeSession.dayIdx,dayMuscle:activeSession.dayMuscle,duration:workoutSeconds,sets:activeSession.sets,metrics:m,prs:newPRs,comments:sessionComments,exerciseNames:_sessionExNames});
   setUserData(currentUser.uid,d);
   document.getElementById('modal-session').style.display='none';
   document.getElementById('workout-timer').textContent='00:00';
@@ -2861,43 +2868,61 @@ function openLibPicker(btn) {
 
 function closeLibPicker() {
   const picker = document.getElementById('modal-library-picker');
-  if (picker) picker.style.display = 'none';
+  if(picker) {
+    picker.style.display = 'none';
+    picker.style.zIndex  = '400';
+  }
   _libPickerTargetInput = null;
-  // NO cerrar el modal-routine (editor) - solo el picker
+  window._assignLibPickerMode = false;
 }
 
 
 function selectLibExercise(name, execNotes) {
-  if (_libPickerTargetInput) {
-    // ── Modo reemplazar: el 📚 de un bloque existente fue tocado ──
+  const isAssignMode = !!window._assignLibPickerMode;
+
+  // Contexto A: reemplazar nombre en bloque existente (funciona en ambos editores)
+  if(_libPickerTargetInput) {
     _libPickerTargetInput.value = name;
     const block = _libPickerTargetInput.closest('.ex-block');
-    if (block) {
+    if(block) {
       const notasField = block.querySelector('.ex-notas');
-      if (notasField && execNotes) notasField.value = execNotes;
+      if(notasField && execNotes) notasField.value = execNotes;
     }
-  } else {
-    // ── Modo agregar: "Buscar en biblioteca" agrega un bloque nuevo ──
-    const container = document.getElementById('exercises-container');
-    if (!container) {
-      closeLibPicker();
-      return;
-    }
-    const ei = container.querySelectorAll('.ex-block').length;
-    const newEx = {
-      name: name,
-      notas: execNotes || '',
-      rest: '90',
-      seriesBlocks: [{ series: '3', reps: '10', rir: 'RIR 2', pct: '' }]
-    };
-    container.insertAdjacentHTML('beforeend', exerciseBlockHTML(newEx, ei));
-    // Renumerar todos los badges
-    container.querySelectorAll('.ex-block').forEach((b, i) => {
-      b.id = 'exblock-' + i;
-      const badge = b.querySelector('.badge-lime');
-      if (badge) badge.textContent = i + 1;
-    });
+    closeLibPicker();
+    return;
   }
+
+  // Contexto B: agregar bloque al editor del coach (assign)
+  if(isAssignMode) {
+    const container = document.getElementById('assign-exercises-container');
+    if(!container) { closeLibPicker(); return; }
+    const ei = container.querySelectorAll('.ex-block').length;
+    container.insertAdjacentHTML('beforeend', assignExerciseBlockHTML({
+      name: name, notas: execNotes || '', rest: '90',
+      seriesBlocks: [{ series:'3', reps:'10', rir:'RIR 2', pct:'' }]
+    }, ei));
+    container.querySelectorAll('.ex-block').forEach((b, i) => {
+      b.id = 'assign-exblock-' + i;
+      const badge = b.querySelector('.badge-lime');
+      if(badge) badge.textContent = i + 1;
+    });
+    closeLibPicker();
+    return;
+  }
+
+  // Contexto C: agregar bloque al editor de rutinas del usuario
+  const container = document.getElementById('exercises-container');
+  if(!container) { closeLibPicker(); return; }
+  const ei = container.querySelectorAll('.ex-block').length;
+  container.insertAdjacentHTML('beforeend', exerciseBlockHTML({
+    name: name, notas: execNotes || '', rest: '90',
+    seriesBlocks: [{ series:'3', reps:'10', rir:'RIR 2', pct:'' }]
+  }, ei));
+  container.querySelectorAll('.ex-block').forEach((b, i) => {
+    b.id = 'exblock-' + i;
+    const badge = b.querySelector('.badge-lime');
+    if(badge) badge.textContent = i + 1;
+  });
   closeLibPicker();
 }
 
@@ -3401,7 +3426,8 @@ function _renderClientDetailContent(uid) {
   const cl = window._coachClients?.[uid];
   if(!cl) return;
   const modal = document.getElementById('modal-client-detail');
-  if(!modal) { modal.style.display = 'flex'; }
+  if(!modal) return;
+  modal.style.display = 'flex';
 
   const planCfg = {free:{label:'Gratuito',color:'#666'},standard:{label:'Estándar',color:'#4A90D9'},pro:{label:'Coaching Pro',color:'#C8E63A'},premium:{label:'Premium',color:'#FF9800'}};
   const pc = planCfg[cl.plan]||planCfg.free;
@@ -3415,31 +3441,54 @@ function _renderClientDetailContent(uid) {
   const histHtml = lastSessions.length ? lastSessions.map(h => {
     const date     = new Date(h.ts||h.date||0).toLocaleDateString('es-AR');
     const time     = new Date(h.ts||h.date||0).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    // Métricas recalculadas desde los sets reales (más confiable que h.metrics)
     const m        = h.metrics || {};
     const dur      = h.duration ? Math.floor(h.duration/60)+'min' : '—';
-    const ton      = m.tonelaje || Math.round(h.totalTonelaje||0);
-    const reps     = m.totalReps || 0;
-    const pesoMed  = m.pesoMedio || 0;
-    const done     = m.done || 0;
-    const total    = m.total || 0;
+    const _allSetsFlat = Object.values(h.sets||{}).flat();
+    const _doneSetsFlat = _allSetsFlat.filter(s => s.done);
+    const ton      = _doneSetsFlat.reduce((a,s)=>a+(parseFloat(s.weight)||0)*(parseFloat(s.realReps||s.reps)||0),0)
+                     || m.tonelaje || Math.round(h.totalTonelaje||0);
+    const reps     = _doneSetsFlat.reduce((a,s)=>a+(parseFloat(s.realReps)||0),0) || m.totalReps || 0;
+    const pesoMed  = _doneSetsFlat.length
+                     ? Math.round(_doneSetsFlat.reduce((a,s)=>a+(parseFloat(s.weight)||0),0)/_doneSetsFlat.length*10)/10
+                     : (m.pesoMedio || 0);
+    const done     = _doneSetsFlat.length || m.done || 0;
+    const total    = _allSetsFlat.length  || m.total || 0;
     const pct      = total > 0 ? Math.round((done/total)*100) : 0;
     const pctColor = pct >= 90 ? 'var(--lime)' : pct >= 70 ? '#FF9800' : '#e74c3c';
 
-    // Detalles por ejercicio
+    // Detalles por ejercicio — usar sets de la sesión como fuente primaria
+    // (la rutina puede haber sido editada o eliminada después de la sesión)
+    const sessionSets = h.sets || {};
     const routine = (cl.routines||[]).find(r => r.id === h.routineId);
-    const exercises = routine?.days?.[h.dayIdx]?.exercises || [];
-    const exerciseRows = exercises.map((ex, ei) => {
-      const exSets = h.sets?.[ei] || [];
-      const doneSets = exSets.filter(s => s.done);
-      const maxKg = doneSets.length ? Math.max(...doneSets.map(s=>parseFloat(s.weight)||0)) : 0;
-      const totalExReps = doneSets.reduce((a,s)=>a+(parseFloat(s.realReps||s.reps)||0),0);
-      const completed = doneSets.length + '/' + exSets.length;
-      const completedColor = doneSets.length === exSets.length ? 'var(--lime)' : '#FF9800';
+    const routineExercises = routine?.days?.[h.dayIdx]?.exercises || [];
+
+    // Reconstruir lista de ejercicios desde los índices de sets
+    const exIndices = Object.keys(sessionSets).map(Number).sort((a,b)=>a-b);
+    const exerciseRows = exIndices.map(ei => {
+      // Nombre: desde la rutina si existe, si no desde el nombre guardado en el set
+      const routineEx = routineExercises[ei];
+      const exSets    = sessionSets[ei] || [];
+      const firstSet  = exSets[0] || {};
+
+      // Intentar recuperar el nombre desde la rutina o desde metadata guardada
+      const exName = routineEx?.name
+        || h.exerciseNames?.[ei]
+        || firstSet.exName
+        || `Ejercicio ${ei + 1}`;
+
+      const doneSets  = exSets.filter(s => s.done);
+      const allSets   = exSets;
+      const maxKg     = doneSets.length ? Math.max(...doneSets.map(s=>parseFloat(s.weight)||0)) : 0;
+      const totalReps = doneSets.reduce((a,s)=>a+(parseFloat(s.realReps||s.reps)||0), 0);
+      const completed = `${doneSets.length}/${allSets.length}`;
+      const completedColor = doneSets.length === allSets.length ? 'var(--lime)' : (doneSets.length > 0 ? '#FF9800' : '#e74c3c');
+
       return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px">
         <span style="color:${completedColor};font-weight:700;flex-shrink:0;width:30px">${completed}</span>
-        <span style="flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ex.name||'—'}</span>
+        <span style="flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${exName}</span>
         <span style="color:var(--text-muted);flex-shrink:0">${maxKg>0?maxKg+'kg':'—'}</span>
-        <span style="color:var(--text-muted);flex-shrink:0">${totalExReps>0?totalExReps+' reps':'—'}</span>
+        <span style="color:var(--text-muted);flex-shrink:0">${totalReps>0?totalReps+' reps':'—'}</span>
       </div>`;
     }).join('');
 
@@ -6643,8 +6692,12 @@ function renderCoachPanel() {
       ? new Date(lastSession.ts || lastSession.date || 0).toLocaleDateString('es-AR')
       : '—';
 
-    // Tonelaje total
-    const totalTon = hist.reduce((acc, h) => acc + (h.totalTonelaje || 0), 0);
+    // Tonelaje total — recalcular desde sets reales cuando totalTonelaje no está guardado
+    const totalTon = hist.reduce((acc, h) => {
+      if(h.totalTonelaje) return acc + h.totalTonelaje;
+      const setsFlat = Object.values(h.sets||{}).flat().filter(s=>s.done);
+      return acc + setsFlat.reduce((a,s)=>a+(parseFloat(s.weight)||0)*(parseFloat(s.realReps||s.reps)||0),0);
+    }, 0);
 
     // Sesiones esta semana
     const weekAgo = Date.now() - 7*24*3600*1000;
@@ -6919,75 +6972,64 @@ function openAssignRoutine(clientUid, clientName, editRoutineId = null) {
   _assignDayIdx    = 0;
   _assignDayCache  = {};
   _assignEditId    = editRoutineId;
+  window._assignLibPickerMode = false;
 
-  // Ocultar modal-client-detail temporalmente y mostrar assign
   const clientModal = document.getElementById('modal-client-detail');
   if(clientModal) clientModal.style.display = 'none';
   const modal = document.getElementById('modal-assign-routine');
-  if(!modal) { alert('Error: modal no encontrado'); return; }
+  if(!modal) { alert('Error: modal de asignación no encontrado'); return; }
   modal.style.display = 'flex';
 
-  // Luego poblar campos con delay para asegurar visibilidad
-  setTimeout(function() {
-    const badge = document.getElementById('assign-client-badge');
-    const title = document.getElementById('assign-routine-title');
-    if(badge) badge.textContent = '👤 Cliente: ' + clientName;
-    if(title) title.textContent = editRoutineId
-      ? 'Editar entrenamiento'
-      : 'Nuevo entrenamiento para ' + clientName;
+  // Resetear botón de guardado
+  const saveBtn = modal.querySelector('button[onclick*="saveAssignRoutine"]');
+  if(saveBtn) { saveBtn.textContent = '💾 Asignar entrenamiento al cliente'; saveBtn.disabled = false; }
 
-    if(editRoutineId) {
-      // Load from Firebase to get latest version
-      if(window._fb) {
-        window._fb.getUserData(clientUid).then(function(data) {
-          const r = data ? (data.routines || []).find(function(x){ return x.id === editRoutineId; }) : null;
-          if(r) {
-            const nameEl = document.getElementById('assign-r-name');
-            const protEl = document.getElementById('assign-r-protocol');
-            const daysEl = document.getElementById('assign-r-days');
-            if(nameEl) nameEl.value = r.name || '';
-            if(protEl) protEl.value = r.protocol || 'Fuerza / Hipertrofia';
-            if(daysEl) daysEl.value = r.days ? r.days.length : 4;
-            // Pre-fill day cache
-            (r.days || []).forEach(function(day, i) { _assignDayCache[i] = day; });
-            assignBuildDayTabs(r);
-          }
-        });
-      } else {
-        const cl = window._coachClients?.[clientUid] || {};
-        const r = (cl.routines || []).find(function(x){ return x.id === editRoutineId; });
-        if(r) {
-          const nameEl = document.getElementById('assign-r-name');
-          const protEl = document.getElementById('assign-r-protocol');
-          const daysEl = document.getElementById('assign-r-days');
-          if(nameEl) nameEl.value = r.name || '';
-          if(protEl) protEl.value = r.protocol || 'Fuerza / Hipertrofia';
-          if(daysEl) daysEl.value = r.days ? r.days.length : 4;
-          (r.days || []).forEach(function(day, i) { _assignDayCache[i] = day; });
-          assignBuildDayTabs(r);
-        }
-      }
-    } else {
-      const nameEl = document.getElementById('assign-r-name');
-      const protEl = document.getElementById('assign-r-protocol');
-      const daysEl = document.getElementById('assign-r-days');
-      if(nameEl) nameEl.value = '';
-      if(protEl) protEl.value = 'Fuerza / Hipertrofia';
-      if(daysEl) daysEl.value = 4;
-      assignBuildDayTabs();
-    }
-  }, 100);
+  // Header
+  const badge = document.getElementById('assign-client-badge');
+  const title = document.getElementById('assign-routine-title');
+  if(badge) badge.textContent = '👤 ' + clientName;
+  if(title) title.textContent = editRoutineId ? 'Editar entrenamiento' : 'Nuevo entrenamiento';
+
+  function _populate(r) {
+    const nameEl = document.getElementById('assign-r-name');
+    const protEl = document.getElementById('assign-r-protocol');
+    const daysEl = document.getElementById('assign-r-days');
+    if(nameEl) nameEl.value = r ? (r.name || '') : '';
+    if(protEl) protEl.value = r ? (r.protocol || 'Fuerza / Hipertrofia') : 'Fuerza / Hipertrofia';
+    if(daysEl) daysEl.value = r && r.days ? r.days.length : 4;
+    if(r && r.days) r.days.forEach((day, i) => { _assignDayCache[i] = day; });
+    assignBuildDayTabs(r || null);
+  }
+
+  if(editRoutineId && window._fb) {
+    window._fb.getUserData(clientUid)
+      .then(data => {
+        const r = data ? (data.routines || []).find(x => x.id === editRoutineId) : null;
+        _populate(r);
+      })
+      .catch(() => _populate(null));
+  } else if(editRoutineId) {
+    const cl = window._coachClients?.[clientUid];
+    const r  = cl ? (cl.routines || []).find(x => x.id === editRoutineId) : null;
+    _populate(r);
+  } else {
+    _populate(null);
+  }
 }
 
 function closeAssignRoutine() {
   document.getElementById('modal-assign-routine').style.display = 'none';
-  // Restaurar modal-client-detail
-  const clientModal = document.getElementById('modal-client-detail');
-  if(clientModal) clientModal.style.display = 'flex';
+  // Restaurar detalle del cliente solo cuando el usuario cancela
+  // (saveAssignRoutine lo maneja por su cuenta tras confirmar Firebase)
+  if(_assignTargetUid) {
+    const clientModal = document.getElementById('modal-client-detail');
+    if(clientModal) clientModal.style.display = 'flex';
+  }
   _assignTargetUid = null;
   _assignDayIdx    = 0;
   _assignDayCache  = {};
   _assignEditId    = null;
+  window._assignLibPickerMode = false;
 }
 
 function assignBuildDayTabs(existingR = null) {
@@ -7078,30 +7120,25 @@ function assignExerciseBlockHTML(ex = {}, ei = 0) {
 }
 
 
-function assignSeriesRowHTML(sb = {}, ei = 0, si = 0) {
+function assignSeriesRowHTML(sb = {}) {
+  const rirOpts = ['Al Fallo','RIR 0','RIR 1','RIR 2','RIR 3','RIR 4','RIR 5']
+    .map(r => `<option${r === (sb.rir || 'RIR 2') ? ' selected' : ''}>${r}</option>`).join('');
   return `<div class="series-row">
-    <input class="sb-series" type="number" value="${sb.series || '3'}" min="1" max="20" />
-    <input class="sb-reps"   type="text"   value="${sb.reps   || '10'}" placeholder="10" />
-    <select class="sb-rir">
-      ${['RIR 0','RIR 1','RIR 2','RIR 3','RIR 4','Fallo'].map(r =>
-        `<option${r === (sb.rir || 'RIR 2') ? ' selected' : ''}>${r}</option>`
-      ).join('')}
-    </select>
-    <input class="sb-pct" type="text" value="${sb.pct || ''}" placeholder="%" />
-    <button type="button" onclick="this.closest('.series-row').remove()"
-      class="btn btn-icon" style="padding:4px 8px">✕</button>
+    <input class="sb-series" type="number" value="${sb.series || '3'}" min="1" max="20" style="padding:6px 8px;font-size:13px" />
+    <input class="sb-reps" type="text" value="${sb.reps || '10'}" placeholder="10" style="padding:6px 8px;font-size:13px" />
+    <select class="sb-rir rir-select">${rirOpts}</select>
+    <input class="sb-pct" type="text" value="${sb.pct || ''}" placeholder="%" style="padding:6px 8px;font-size:13px" />
+    <button type="button" onclick="this.closest('.series-row').remove()" class="btn-icon" style="font-size:12px">✕</button>
   </div>`;
 }
 
 
 function assignAddSeriesRow(btn) {
-  // Compatibilidad con ambos nombres de container
   const block = btn.closest('.ex-block');
-  const container = block ? (block.querySelector('.series-container') || block.querySelector('.series-rows-container')) : null;
+  if(!block) return;
+  const container = block.querySelector('.series-container');
   if(!container) return;
-  const ei = parseInt(block.id.replace('assign-exblock-', '')) || 0;
-  const si = container.children.length;
-  container.insertAdjacentHTML('beforeend', assignSeriesRowHTML({}, ei, si));
+  container.insertAdjacentHTML('beforeend', assignSeriesRowHTML({}));
 }
 
 function assignAddSeriesRowToBlock(btn) {
@@ -7178,15 +7215,16 @@ function saveAssignRoutine() {
     assignedAt: new Date().toISOString(),
   };
 
-  // Cerrar modal (después de guardar variables locales)
-  closeAssignRoutine();
-
   if(!window._fb) {
     alert('❌ Firebase no disponible.');
     return;
   }
 
-  // 1. Leer datos actuales del cliente desde Firebase
+  // Spinner en el botón mientras Firebase trabaja
+  const _saveBtn = document.querySelector('#modal-assign-routine button[onclick*="saveAssignRoutine"]');
+  if(_saveBtn) { _saveBtn.textContent = '⏳ Guardando...'; _saveBtn.disabled = true; }
+
+  // 1. Leer datos actuales del cliente
   window._fb.getUserData(targetUid)
     .then(function(clientData) {
       if(!clientData) {
@@ -7203,7 +7241,7 @@ function saveAssignRoutine() {
         clientData.routines.push(newRoutine);
       }
 
-      // 3. Guardar documento completo en Firestore (sin merge para evitar problemas)
+      // 3. Guardar en Firestore
       return window._fb.saveUserData(targetUid, clientData)
         .then(function() { return clientData; });
     })
@@ -7212,14 +7250,26 @@ function saveAssignRoutine() {
       if(window._coachClients && window._coachClients[targetUid]) {
         window._coachClients[targetUid].routines = clientData.routines;
       }
-      alert('✅ Entrenamiento "' + name + '" asignado. El cliente ya puede verlo en su app.');
-      // 5. Recargar panel coach
+
+      // 5. Cerrar modal assign y reabrir detalle con datos frescos
+      document.getElementById('modal-assign-routine').style.display = 'none';
+      _assignTargetUid = null; _assignDayIdx = 0;
+      _assignDayCache  = {}; _assignEditId  = null;
+      window._assignLibPickerMode = false;
+
+      window._currentDetailUid = targetUid;
+      openClientDetail(targetUid);
+
+      showToast('✅ "' + name + '" asignado correctamente al cliente');
+
+      // 6. Actualizar lista de clientes en segundo plano
       window._fb.getAllUsers().then(function(users) {
         _renderCoachClients(users, Object.keys(users));
       });
     })
     .catch(function(err) {
       console.error('Error asignando rutina:', err);
+      if(_saveBtn) { _saveBtn.textContent = '💾 Asignar entrenamiento al cliente'; _saveBtn.disabled = false; }
       alert('❌ Error: ' + (err.message || 'No se pudo guardar. Verificá tu conexión.'));
     });
 }
@@ -7235,10 +7285,8 @@ function openAssignRoutineForCurrent() {
 
 
 function openAssignLibPicker(btn) {
-  // Guardar el input del bloque en _libPickerTargetInput
   const block = btn.closest('.ex-block');
   _libPickerTargetInput = block ? block.querySelector('.ex-name') : null;
-  // Marcar que estamos en modo assign (no routine editor)
   window._assignLibPickerMode = true;
   _libPickerActiveGroup = 'Todos';
   const searchEl = document.getElementById('lib-picker-search');
@@ -7248,7 +7296,7 @@ function openAssignLibPicker(btn) {
   const picker = document.getElementById('modal-library-picker');
   if(picker) {
     picker.style.display = 'flex';
-    picker.style.zIndex  = '5000'; // Encima del modal assign (z-index:4000)
+    picker.style.zIndex  = '5000';
   }
 }
 
