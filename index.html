@@ -39,6 +39,10 @@
   --amber-bg: rgba(239,159,39,0.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* Ocultar ojo nativo del navegador en campos password */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear { display: none; }
+input[type="password"]::-webkit-credentials-auto-fill-button { display: none !important; }
 html { overscroll-behavior-y: contain; overscroll-behavior: none; touch-action: pan-y; }
 body { font-family: 'DM Sans', sans-serif; background: var(--black); color: var(--text); min-height: 100vh; font-size: 15px; line-height: 1.6; transition: background 0.2s, color 0.2s; }
 h1,h2,h3 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
@@ -556,9 +560,12 @@ textarea { resize: vertical; min-height: 80px; }
         <div style="position:relative">
           <input type="password" id="login-pass" name="password" placeholder="••••••••" autocomplete="current-password"
             onkeydown="if(event.key==='Enter')doLogin()"
-            style="padding-right:44px" />
+            style="padding-right:48px" />
           <button type="button" onclick="togglePass('login-pass','eye-login')"
-            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1;padding:4px"
+            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
+              width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+              background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+              cursor:pointer;font-size:16px;z-index:20;touch-action:manipulation"
             id="eye-login">👁</button>
         </div>
       </div>
@@ -590,9 +597,12 @@ textarea { resize: vertical; min-height: 80px; }
       <div class="form-group"><label>Email</label><input type="email" id="reg-email" name="email" placeholder="usuario@email.com" autocomplete="email" inputmode="email" /></div>
       <div class="form-group"><label>Contraseña</label>
         <div style="position:relative">
-          <input type="password" id="reg-pass" name="new-password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" style="padding-right:44px" />
+          <input type="password" id="reg-pass" name="new-password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" style="padding-right:48px" />
           <button type="button" onclick="togglePass('reg-pass','eye-reg')"
-            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1;padding:4px"
+            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
+              width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+              background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+              cursor:pointer;font-size:16px;z-index:20;touch-action:manipulation"
             id="eye-reg">👁</button>
         </div>
       </div>
@@ -668,7 +678,11 @@ textarea { resize: vertical; min-height: 80px; }
       <div class="more-item" onclick="goPageFromMore('templates')"><span class="more-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span><span>Plantillas</span></div>
       <div class="more-item" onclick="goPageFromMore('coaching')"><span class="more-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 11l2 2 4-4"/></svg></span><span>Mi Coach</span></div>
       <div class="more-item" onclick="goPageFromMore('settings')"><span class="more-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span><span>Ajustes</span></div>
-      <div class="more-item" onclick="doLogout();closeMoreMenu()"><span class="more-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span><span>Cerrar sesión</span></div>
+      <div class="more-item" onclick="doLogout();closeMoreMenu()"
+  style="color:var(--red);border-top:1px solid var(--border);margin-top:4px;padding-top:16px">
+  <span class="more-svg" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+  <span style="font-weight:600">Cerrar sesión</span>
+</div>
     </div>
   </div>
 
@@ -1210,7 +1224,7 @@ textarea { resize: vertical; min-height: 80px; }
               <div style="position:relative;flex:1">
                 <input type="password" id="coach-panel-pass" placeholder="Contraseña coach"
                   style="width:100%;padding-right:40px" onkeydown="if(event.key==='Enter')openCoachPanel()" />
-                <button type="button" onclick="togglePass('coach-panel-pass')"
+                <button type="button" id="eye-coach" onclick="togglePass('coach-panel-pass','eye-coach')"
                   style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
                     background:none;border:none;cursor:pointer;font-size:16px;padding:2px">🙈</button>
               </div>
@@ -1571,21 +1585,33 @@ function togglePass(inputId, btnId) {
   if (!input) return;
   if (input.type === 'password') {
     input.type = 'text';
-    if (btn) btn.textContent = '🙈';
+    if (btn) { btn.textContent = '🙈'; btn.title = 'Ocultar contraseña'; }
   } else {
     input.type = 'password';
-    if (btn) btn.textContent = '👁';
+    if (btn) { btn.textContent = '👁'; btn.title = 'Mostrar contraseña'; }
   }
+  input.focus();
 }
 
 // ── RECORDAR CONTRASEÑA ──
 function loadRememberedEmail() {
   const savedEmail = localStorage.getItem('lift86_remember_email');
   const savedPass  = localStorage.getItem('lift86_remember_pass');
+  if (savedEmail) {
+    const emailEl = document.getElementById('login-user');
+    if(emailEl) emailEl.value = savedEmail;
+  }
   if (savedEmail && savedPass) {
-    document.getElementById('login-user').value = savedEmail;
-    document.getElementById('login-pass').value = atob(savedPass);
-    document.getElementById('remember-me').checked = true;
+    try {
+      const decoded = decodeURIComponent(escape(atob(savedPass)));
+      const passEl  = document.getElementById('login-pass');
+      const chkEl   = document.getElementById('remember-me');
+      if(passEl) passEl.value = decoded;
+      if(chkEl)  chkEl.checked = true;
+    } catch(e) {
+      // Valor guardado corrupto — limpiar silenciosamente
+      localStorage.removeItem('lift86_remember_pass');
+    }
   }
 }
 
@@ -1604,42 +1630,45 @@ function doLogin() {
   if(!u || !p) { errEl.textContent='Completá todos los campos.'; return; }
   errEl.textContent = '⏳ Ingresando...';
 
-  if(window._fb) {
-    // Firebase Auth
-    window._fb.login(u, p)
-      .then(async user => {
-        const parts = (user.displayName || '').split(' ');
-        currentUser = { uid:user.uid, email:user.email, name:parts[0]||'', surname:parts.slice(1).join(' ')||'', displayName:user.displayName||'' };
-        // Cargar datos desde Firebase
-        const data = await window._fb.getUserData(user.uid);
-        window._userData = data || { routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[] };
-        // Recordar email
-        if(document.getElementById('remember-me')?.checked) {
-          localStorage.setItem('lift86_remember_email', u);
-        } else {
-          localStorage.removeItem('lift86_remember_email');
-        }
-        errEl.textContent = '';
-        openApp();
-      })
-      .catch(err => {
-        console.error(err);
-        if(err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-          errEl.textContent = 'Usuario o contraseña incorrectos.';
-        } else if(err.code === 'auth/too-many-requests') {
-          errEl.textContent = 'Demasiados intentos. Intentá más tarde.';
-        } else {
-          errEl.textContent = 'Error de conexión. Verificá tu internet.';
-        }
-      });
-  } else {
-    // Fallback localStorage
-    const users = getUsers();
-    const uid = Object.keys(users).find(k => users[k].email===u || users[k].username===u);
-    if (!uid || users[uid].pass !== btoa(p)) { errEl.textContent='Usuario o contraseña incorrectos.'; return; }
-    currentUser = { uid, ...users[uid] };
-    openApp();
-  }
+  // Firebase carga de forma asíncrona (ES6 module) — esperar hasta 5 segundos
+  const _tryLogin = (attempts) => {
+    if(window._fb) {
+      window._fb.login(u, p)
+        .then(async user => {
+          const parts = (user.displayName || '').split(' ');
+          currentUser = { uid:user.uid, email:user.email, name:parts[0]||'', surname:parts.slice(1).join(' ')||'', displayName:user.displayName||'' };
+          const data = await window._fb.getUserData(user.uid);
+          window._userData = data || { routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[] };
+          if(document.getElementById('remember-me')?.checked) {
+            localStorage.setItem('lift86_remember_email', u);
+            localStorage.setItem('lift86_remember_pass', btoa(unescape(encodeURIComponent(p))));
+          } else {
+            localStorage.removeItem('lift86_remember_email');
+            localStorage.removeItem('lift86_remember_pass');
+          }
+          errEl.textContent = '';
+          openApp();
+        })
+        .catch(err => {
+          console.error('Login error:', err);
+          if(err.code==='auth/user-not-found'||err.code==='auth/wrong-password'||err.code==='auth/invalid-credential') {
+            errEl.textContent = '❌ Usuario o contraseña incorrectos.';
+          } else if(err.code==='auth/too-many-requests') {
+            errEl.textContent = '⚠️ Demasiados intentos. Intentá en unos minutos.';
+          } else if(err.code==='auth/network-request-failed') {
+            errEl.textContent = '❌ Sin conexión. Verificá tu internet.';
+          } else {
+            errEl.textContent = '❌ Error: ' + (err.message || 'intentá de nuevo.');
+          }
+        });
+    } else if(attempts > 0) {
+      // Firebase todavía cargando — reintentar en 500ms
+      setTimeout(() => _tryLogin(attempts - 1), 500);
+    } else {
+      errEl.textContent = '⚠️ La app solo funciona desde https://ft-liftok.github.io/LIFT';
+    }
+  };
+  _tryLogin(10); // hasta 5 segundos de espera
 }
 
 function doRegister() {
@@ -1651,39 +1680,37 @@ function doRegister() {
   if(!name || !email || pass.length < 6) { errEl.textContent='Completá todos los campos (mín. 6 caracteres).'; return; }
   errEl.textContent = '⏳ Creando cuenta...';
 
-  if(window._fb) {
-    // Firebase Auth
-    window._fb.register(email, pass, name, surname)
-      .then(async user => {
-        currentUser = { uid:user.uid, email:user.email, name, surname, displayName:name+' '+surname };
-        window._userData = { routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[], plan:'free' };
-        // Guardar perfil en Firestore
-        await window._fb.saveUserData(user.uid, { ...window._userData, name, surname, email });
-        errEl.textContent = '';
-        openApp();
-      })
-      .catch(err => {
-        console.error(err);
-        if(err.code === 'auth/email-already-in-use') {
-          errEl.textContent = 'Email ya registrado.';
-        } else if(err.code === 'auth/weak-password') {
-          errEl.textContent = 'La contraseña es muy débil (mín. 6 caracteres).';
-        } else if(err.code === 'auth/invalid-email') {
-          errEl.textContent = 'Email inválido.';
-        } else {
-          errEl.textContent = 'Error de conexión. Verificá tu internet.';
-        }
-      });
-  } else {
-    // Fallback localStorage
-    const users=getUsers();
-    if(Object.values(users).find(u=>u.email===email)) { errEl.textContent='Email ya registrado.'; return; }
-    const uid='u_'+Date.now();
-    users[uid]={name,surname,email,username:email,pass:btoa(pass)};
-    setUsers(users);
-    currentUser={uid,...users[uid]};
-    openApp();
-  }
+  const _tryReg = (attempts) => {
+    if(window._fb) {
+      window._fb.register(email, pass, name, surname)
+        .then(async user => {
+          currentUser = { uid:user.uid, email:user.email, name, surname, displayName:name+' '+surname };
+          window._userData = { routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[], plan:'free' };
+          await window._fb.saveUserData(user.uid, { ...window._userData, name, surname, email });
+          errEl.textContent = '';
+          openApp();
+        })
+        .catch(err => {
+          console.error(err);
+          if(err.code === 'auth/email-already-in-use') {
+            errEl.textContent = '❌ Email ya registrado.';
+          } else if(err.code === 'auth/weak-password') {
+            errEl.textContent = '❌ Contraseña muy débil (mín. 6 caracteres).';
+          } else if(err.code === 'auth/invalid-email') {
+            errEl.textContent = '❌ Email inválido.';
+          } else if(err.code === 'auth/network-request-failed') {
+            errEl.textContent = '❌ Sin conexión. Verificá tu internet.';
+          } else {
+            errEl.textContent = '❌ Error: ' + (err.message || 'intentá de nuevo.');
+          }
+        });
+    } else if(attempts > 0) {
+      setTimeout(() => _tryReg(attempts - 1), 500);
+    } else {
+      errEl.textContent = '⚠️ La app solo funciona desde https://ft-liftok.github.io/LIFT';
+    }
+  };
+  _tryReg(10);
 }
 
 function showForgot() { switchAuth('forgot'); }
@@ -2123,8 +2150,12 @@ function rebuildWorkoutContent(){
         <td>${rirBadge}</td>
         <td><input type="number" min="0" style="width:60px;padding:4px 6px;font-size:13px" placeholder="—" value="${set.realReps||''}" onchange="updateSet(${ei},${si},'realReps',this.value)" /></td>
         <td style="position:relative">
-          <input type="number" min="0" step="0.5" style="width:70px;padding:4px 6px;font-size:13px" placeholder="${prKg?prKg+'kg':'kg'}" value="${set.weight||''}"
+          <input type="number" min="0" step="0.5"
+            style="width:70px;padding:4px 6px;font-size:13px;color:var(--text)"
+            placeholder="${prKg?prKg+'':''}"
+            value="${set.weight||''}"
             onchange="updateSet(${ei},${si},'weight',this.value);checkLivePR(this,${ei},${si},'${ex.name}')" />
+          ${prKg?`<div style="position:absolute;right:-22px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--text-dim);line-height:1;text-align:center;white-space:nowrap">PR<br>${prKg}kg</div>`:''}
           <span id="pr-ind-${ei}-${si}" style="position:absolute;right:-22px;top:50%;transform:translateY(-50%);font-size:14px;display:none">🏆</span>
         </td>
         <td><button class="set-check${set.done?' done':''}" id="sc-${ei}-${si}" onclick="toggleSet(${ei},${si})">${set.done?'✓':''}</button></td>
@@ -2266,10 +2297,17 @@ function loadWorkoutSession(start=false){
 function updateSet(ei,si,field,val){if(activeSession)activeSession.sets[ei][si][field]=val;}
 function checkLivePR(input,ei,si,exName){
   const kg=parseFloat(input.value)||0;
+  if(!kg) return;
   const prs=getPRs();
   const prevKg=prs[exName]?.kg||0;
   const ind=document.getElementById(`pr-ind-${ei}-${si}`);
-  if(ind) ind.style.display=kg>prevKg&&kg>0?'inline':'none';
+  if(!ind) return;
+  if(kg>prevKg) {
+    ind.style.display='inline';
+    ind.title='¡Nuevo récord personal!';
+  } else {
+    ind.style.display='none';
+  }
 }
 function toggleSet(ei,si){
   if(!activeSession)return;
@@ -2281,11 +2319,19 @@ function toggleSet(ei,si){
   if(s.done){
     // Leer rest desde activeSession (guardado al iniciar, sin depender de Firebase)
     const restSecs = (activeSession.rests && activeSession.rests[ei]) ? activeSession.rests[ei] : 90;
-    // Próximo ejercicio
-    const allEx=r?.days?.[activeSession.dayIdx]?.exercises||[];
-    const nextEx=allEx[ei+1];
-    const nextName=nextEx?nextEx.name:'Fin del entrenamiento';
+    // Próximo ejercicio — leer la rutina desde datos del usuario (r no está en este scope)
+    const _d = getUserData(currentUser.uid);
+    const _r = _d.routines.find(x => x.id === activeSession.routineId);
+    const allEx = _r?.days?.[activeSession.dayIdx]?.exercises || [];
+    const nextEx = allEx[ei+1];
+    const nextName = nextEx ? nextEx.name : 'Fin del entrenamiento';
     startRestTimer(restSecs, nextName);
+
+    // Verificar PR al marcar la serie como completada
+    const kgInput = document.querySelector(`#sc-${ei}-${si}`)?.closest('tr')?.querySelector('input[type=number][step]');
+    if(kgInput && kgInput.value) {
+      checkLivePR(kgInput, ei, si, allEx[ei]?.name || '');
+    }
   }
 }
 
@@ -5498,14 +5544,299 @@ const EXERCISE_DB = [
     desc:'Ejercicio compuesto de isometría diseñado por Franco Toledo. Secuencia continua: plancha frontal 10 seg + plancha lateral izquierda 10 seg + plancha lateral derecha 10 seg. Descanso 10 seg entre rondas. 3 series recomendadas.',
     exec:'POS 1 — Plancha frontal 10 seg: antebrazos y puntas de pie. Cuerpo en línea recta. Core activado. TRANSICIÓN al antebrazo izquierdo. POS 2 — Plancha lateral izquierda 10 seg: cadera elevada en línea. TRANSICIÓN al lado derecho. POS 3 — Plancha lateral derecha 10 seg. DESCANSO 10 seg. Repetir 3 series.',
     errors:'Dejar caer la cadera en frontal. Elevar excesivamente la cadera. En lateral: dejar que la cadera descienda. No mantener alineación en transiciones. Contener la respiración.',
-    svg:'<svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="30" x2="52" y2="30" stroke="#C8E63A" stroke-width="3" stroke-linecap="round"/><circle cx="30" cy="24" r="4" fill="#C8E63A"/><line x1="8" y1="38" x2="8" y2="30" stroke="#C8E63A" stroke-width="2"/><line x1="52" y1="38" x2="52" y2="30" stroke="#C8E63A" stroke-width="2"/></svg>' }
+    svg:'<svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="30" x2="52" y2="30" stroke="#C8E63A" stroke-width="3" stroke-linecap="round"/><circle cx="30" cy="24" r="4" fill="#C8E63A"/><line x1="8" y1="38" x2="8" y2="30" stroke="#C8E63A" stroke-width="2"/><line x1="52" y1="38" x2="52" y2="30" stroke="#C8E63A" stroke-width="2"/></svg>' },
+
+  // ── FLEXIBILIDAD ─────────────────────────────────────────────,
+  { id:'fl1', group:'Flexibilidad',
+    name:'Isquiotibiales Unilateral (Sentado)',
+    muscle:'Isquiotibiales',
+    musclesFull:'Bíceps femoral, semitendinoso, semimembranoso, gastrocnemios',
+    desc:'Sentado, una pierna extendida al frente y la otra flexionada con la planta del pie apoyada en el muslo interno. Tronco alineado.',
+    exec:'Flexionar la cadera hacia adelante manteniendo la columna neutra (sin encorvar). Buscar tensión en el posterior del muslo. Mantener 20-30 segundos.',
+    errors:'Encorvar la columna torácica para alcanzar el pie con las manos. Flexionar la rodilla de la pierna estirada.' },
+  { id:'fl2', group:'Flexibilidad',
+    name:'Cuádriceps en Cúbito Prono',
+    muscle:'Cuádriceps',
+    musclesFull:'Recto femoral, vasto lateral, vasto medial, vasto intermedio',
+    desc:'Tumbado boca abajo en el suelo. Una mano sostiene el tobillo del mismo lado, traccionándolo hacia el glúteo.',
+    exec:'Mantener las rodillas juntas y la pelvis en retroversión (pubis hacia el suelo) para maximizar la tensión del recto femoral. Mantener 30 segundos por lado.',
+    errors:'Permitir hiperlordosis lumbar (arquear la espalda baja). Separar excesivamente la rodilla del eje central.' },
+  { id:'fl3', group:'Flexibilidad',
+    name:'Couch Stretch Modificado (Flexores de Cadera)',
+    muscle:'Flexores de cadera',
+    musclesFull:'Psoas mayor, ilíaco, recto femoral',
+    desc:'Zancada con la rodilla trasera apoyada en el suelo y la rodilla delantera a 90°. Tronco vertical.',
+    exec:'Realizar retroversión pélvica activa (contraer el glúteo de la pierna trasera) y desplazar el peso hacia adelante hasta sentir tensión en la ingle anterior.',
+    errors:'Arquear la zona lumbar para avanzar más. No activar el glúteo, perdiendo la efectividad sobre el psoas.' },
+  { id:'fl4', group:'Flexibilidad',
+    name:'Glúteo Mayor en Suelo (Figura 4)',
+    muscle:'Glúteo mayor y rotadores externos',
+    musclesFull:'Glúteo mayor, piriforme, rotadores externos de la cadera',
+    desc:'Tumbado boca arriba, rodillas flexionadas. Cruzar el tobillo sobre la rodilla opuesta.',
+    exec:'Sujetar el muslo contrario por detrás y traccionarlo hacia el pecho manteniendo la cabeza y hombros relajados en el suelo.',
+    errors:'Despegar el sacro o la zona lumbar del suelo de manera exagerada. Tensar el cuello durante la tracción.' },
+  { id:'fl5', group:'Flexibilidad',
+    name:'Aductores en Posición de Rana (Frog Stretch)',
+    muscle:'Aductores',
+    musclesFull:'Aductor mayor, largo, corto y grácil',
+    desc:'En cuadrupedia, separar las rodillas hacia los lados al máximo manteniendo los bordes internos de pies y rodillas en contacto con el suelo. Rodillas a 90°.',
+    exec:'Apoyar los antebrazos en el suelo y empujar suavemente la cadera hacia los talones manteniendo la columna recta.',
+    errors:'Pelvis en anteversión exagerada perdiendo control lumbar. Mover los pies hacia adentro rompiendo el ángulo de 90°.' },
+  { id:'fl6', group:'Flexibilidad',
+    name:'Pectoral Mayor en Pared',
+    muscle:'Pectoral mayor y deltoides anterior',
+    musclesFull:'Pectoral mayor (esternal y clavicular), deltoides anterior',
+    desc:'De pie al lado de una columna. Apoyar el antebrazo y el codo en la superficie formando 90° en el hombro.',
+    exec:'Dar un paso al frente con la pierna interna y rotar el torso en dirección opuesta al punto de apoyo, manteniendo la escápula deprimida.',
+    errors:'Elevar el hombro hacia la oreja rompiendo el plano escapular. Adelantar la cabeza (protracción cervical) para forzar el giro.' },
+  { id:'fl7', group:'Flexibilidad',
+    name:'Dorsal Ancho en Posición de Rezo Lateral',
+    muscle:'Dorsal ancho',
+    musclesFull:'Dorsal ancho, redondo mayor, músculos intercostales',
+    desc:'De rodillas, sentándose sobre los talones (posición del niño). Brazos extendidos al frente sobre el suelo.',
+    exec:'Caminar con las manos hacia un lado manteniendo los glúteos pegados a los talones, hasta sentir tensión en todo el flanco del torso. Empujar la axila hacia el suelo.',
+    errors:'Despegar el glúteo opuesto del talón, restando tensión a la fascia toracolumbar. Flexionar los codos.' },
+  { id:'fl8', group:'Flexibilidad',
+    name:'Tríceps Braquial Suspendido',
+    muscle:'Tríceps braquial (porción larga)',
+    musclesFull:'Tríceps braquial — porción larga (biarticular)',
+    desc:'De pie o de rodillas. Llevar un brazo hacia arriba, flexionar el codo colocando la mano detrás de la parte alta de la espalda.',
+    exec:'Con la mano contraria, sujetar el codo y tirar suavemente hacia atrás y hacia abajo, manteniendo el cuello alineado.',
+    errors:'Empujar la cabeza hacia adelante con el propio brazo. Arquear en exceso la columna lumbar por falta de movilidad glenohumeral.' },
+  { id:'fl9', group:'Flexibilidad',
+    name:'Deltoides Posterior y Romboides en Cruz',
+    muscle:'Deltoides posterior y romboides',
+    musclesFull:'Deltoides posterior, romboides, trapecio medio',
+    desc:'De pie, cruzar un brazo horizontalmente por delante del cuerpo a la altura del pecho.',
+    exec:'Con el antebrazo opuesto, presionar el brazo cruzado contra el torso. Mantener el hombro trabajado firmemente deprimido.',
+    errors:'Rotar todo el torso siguiendo el movimiento del brazo. Elevar el hombro perdiendo el aislamiento del deltoides posterior.' },
+  { id:'fl10', group:'Flexibilidad',
+    name:'Perro de Arriba (Upward Dog Modificado)',
+    muscle:'Abdomen, oblicuos y flexores de cadera (músculos estirados)',
+    musclesFull:'Recto del abdomen, oblicuos, psoas-ilíaco (músculos en elongación); extensores de columna y glúteos como estabilizadores activos',
+    desc:'Tumbado boca abajo, manos apoyadas en el suelo al lado del pecho.',
+    exec:'Extender los codos para elevar el torso mientras la pelvis y muslos permanecen cerca del suelo. Activar ligeramente los glúteos para proteger la lumbar y proyectar el pecho al frente.',
+    errors:'Dejar caer los hombros colapsando el cuello. Sentir dolor o pinzamiento en la zona lumbar baja por falta de extensión torácica.' },
+  { id:'fl11', group:'Flexibilidad',
+    name:'Pantorrilla en Escalón (Gastrocnemio)',
+    muscle:'Gastrocnemio (gemelos)',
+    musclesFull:'Gastrocnemio (cabezas medial y lateral), tendón de Aquiles',
+    desc:'De pie sobre el borde de un escalón, apoyando únicamente los metatarsos (parte delantera del pie).',
+    exec:'Manteniendo la rodilla completamente extendida, dejar caer el talón de forma controlada por debajo del escalón hasta sentir tensión tolerable.',
+    errors:'Flexionar la rodilla (desplaza la tensión al sóleo). Realizar rebotes dinámicos descontrolados.' },
+  { id:'fl12', group:'Flexibilidad',
+    name:'Sóleo en Pared',
+    muscle:'Sóleo',
+    musclesFull:'Sóleo (monoarticular)',
+    desc:'De pie frente a una pared. Una pierna un paso por detrás de la otra.',
+    exec:'Apoyar las manos en la pared. Flexionar ambas rodillas asegurando que el talón del pie trasero no se despegue del suelo. Desplazar el peso hacia abajo.',
+    errors:'Extender la rodilla trasera (enfocaría el trabajo en los gemelos). Levantar el talón trasero.' },
+  { id:'fl13', group:'Flexibilidad',
+    name:'Rotación Torácica en Cuadrupedia (Thread the Needle)',
+    muscle:'Romboides y rotadores torácicos',
+    musclesFull:'Romboides, porción media del trapecio, erectores espinales, oblicuos',
+    desc:'En posición de cuadrupedia (manos bajo hombros, rodillas bajo caderas).',
+    exec:'Deslizar un brazo por el espacio entre la mano y la rodilla contraria, rotando el torso hasta apoyar el hombro y la mejilla en el suelo. Mantener la cadera alineada.',
+    errors:'Despegar o desplazar la cadera lateralmente perdiendo estabilidad pélvica. Flexionar en exceso la columna lumbar.' },
+  { id:'fl14', group:'Flexibilidad',
+    name:'Gato-Camello (Cat-Camel)',
+    muscle:'Cadena posterior y anterior del tronco',
+    musclesFull:'Cadena fascial posterior (erectores, fascia toracolumbar), recto abdominal',
+    desc:'En cuadrupedia en el suelo.',
+    exec:'Alternar fluidamente entre arquear la espalda hacia el techo (flexión espinal) y llevar el abdomen hacia el suelo (extensión espinal). Movimiento lento y controlado.',
+    errors:'Forzar rangos finales dolorosos en las articulaciones lumbares. Realizar el movimiento de forma rápida y brusca.' },
+  { id:'fl15', group:'Flexibilidad',
+    name:'Inclinación de Cadena Lateral en Bipedestación',
+    muscle:'Cadena lateral del tronco',
+    musclesFull:'Oblicuo externo, tensor de la fascia lata, cuadrado lumbar, intercostales',
+    desc:'De pie, cruzar el pie izquierdo por detrás del derecho. Elevar el brazo izquierdo verticalmente.',
+    exec:'Realizar una inclinación lateral del torso hacia la derecha, empujando la cadera izquierda hacia afuera para abrir todo el contorno lateral del cuerpo.',
+    errors:'Rotar el torso hacia el suelo (perdiendo el plano frontal estricto). No mantener los pies firmes, perdiendo el equilibrio.' },
+  { id:'fl16', group:'Flexibilidad',
+    name:'Bíceps Braquial con Agarre Dorsal en Barra',
+    muscle:'Bíceps braquial',
+    musclesFull:'Bíceps braquial, braquial anterior, deltoides anterior',
+    desc:'De pie de espaldas a una barra horizontal fija a la altura de la cadera. Sujetar con palmas hacia abajo (pronación).',
+    exec:'Flexionar las rodillas controladamente para descender el cuerpo, manteniendo los brazos completamente estirados.',
+    errors:'Permitir que los hombros se desplacen hacia adelante en postura hipercifótica. Flexionar los codos durante el descenso.' },
+  { id:'fl17', group:'Flexibilidad',
+    name:'Flexores de la Muñeca y Antebrazo',
+    muscle:'Flexores del antebrazo',
+    musclesFull:'Flexor radial del carpo, flexor cubital del carpo, palmar largo',
+    desc:'Extender un brazo al frente a la altura del hombro con la palma hacia adelante y los dedos apuntando al suelo.',
+    exec:'Con la mano contraria, tomar los dedos (incluyendo el pulgar) y traccionar suavemente hacia el cuerpo manteniendo el codo en extensión completa.',
+    errors:'Dejar el dedo pulgar fuera de la tracción. Flexionar el codo del brazo trabajado.' },
+  { id:'fl18', group:'Flexibilidad',
+    name:'Extensores de la Muñeca',
+    muscle:'Extensores del antebrazo',
+    musclesFull:'Extensor común de los dedos, extensor radial largo y corto del carpo',
+    desc:'Extender un brazo al frente con la palma hacia el propio cuerpo y los dedos apuntando hacia el suelo.',
+    exec:'Con la mano libre, ejercer presión suave sobre el dorso de la mano hacia el cuerpo para inducir la flexión palmar máxima.',
+    errors:'Aplicar fuerza excesiva y brusca sobre la muñeca. Elevar el hombro del brazo trabajado.' },
+  { id:'fl19', group:'Flexibilidad',
+    name:'Trapecio Superior (Inclinación Lateral Cervical)',
+    muscle:'Trapecio superior',
+    musclesFull:'Trapecio (porción superior), angular de la escápula (elevador de la escápula)',
+    desc:'Sentado o de pie con columna recta. Colocar la mano del lado de inclinación sobre la oreja contraria.',
+    exec:'Inclinar suavemente la cabeza de forma pasiva. Para aumentar la tensión, esconder la mano del lado opuesto detrás de la espalda baja para deprimir esa escápula.',
+    errors:'Elevar el hombro del lado opuesto anulando la distancia origen-inserción. Girar la barbilla en lugar de mantener la inclinación lateral pura.' },
+  { id:'fl20', group:'Flexibilidad',
+    name:'Glúteo Medio en Supino (Twist Espinal)',
+    muscle:'Glúteo medio y cuadrado lumbar',
+    musclesFull:'Glúteo medio, tensor de la fascia lata, cuadrado lumbar',
+    desc:'Tumbado boca arriba con los brazos en cruz para estabilizar la cintura escapular.',
+    exec:'Flexionar la rodilla a 90° y cruzarla por encima del cuerpo hacia el lado opuesto. Usar la mano para guiar la rodilla sin despegar el hombro contrario del suelo.',
+    errors:'Despegar completamente el hombro opuesto del suelo, transformando la posición en una rotación global sin tensión local.' },
+
+  // ── MOVILIDAD ARTICULAR ──────────────────────────────────────,
+  { id:'ma1', group:'Movilidad articular',
+    name:'Dislocaciones de Hombro con Bastón',
+    muscle:'Complejo articular del hombro',
+    musclesFull:'Articulación glenohumeral, escapulotorácica, pectoral mayor, manguito rotador',
+    desc:'De pie, sosteniendo un bastón o banda elástica al frente con agarre bien ancho y brazos completamente extendidos.',
+    exec:'Elevar el bastón por encima de la cabeza y llevarlo hacia atrás hasta la zona lumbar de manera fluida. Regresar al frente manteniendo los codos bloqueados.',
+    errors:'Flexionar los codos durante el trayecto. Arquear excesivamente la espalda baja para compensar la falta de movilidad glenohumeral.' },
+  { id:'ma2', group:'Movilidad articular',
+    name:'Rotaciones Articulares Controladas de Hombro (CARs)',
+    muscle:'Articulación glenohumeral',
+    musclesFull:'Manguito rotador, deltoides, cápsula articular glenohumeral',
+    desc:'De pie, con un brazo al costado y el puño cerrado para generar tensión global.',
+    exec:'Elevar el brazo en flexión máxima, rotar internamente el hombro al llegar arriba, y dibujar un círculo amplio hacia atrás hasta volver al inicio.',
+    errors:'Rotar el torso o inclinar el cuerpo para agrandar el círculo. Modificar la posición del cuello.' },
+  { id:'ma3', group:'Movilidad articular',
+    name:'Círculos de Cadera en Cuadrupedia (CARs de Cadera)',
+    muscle:'Articulación coxofemoral',
+    musclesFull:'Cápsula articular de la cadera, glúteo medio, piriforme, iliopsoas',
+    desc:'En cuadrupedia, columna neutra y abdomen activo.',
+    exec:'Despegar una rodilla y llevarla al pecho (flexión), abrirla hacia el costado (abducción) y rotarla hacia atrás (extensión y rotación) dibujando un círculo máximo sin mover la pelvis.',
+    errors:'Inclinar todo el peso hacia el lado de apoyo. Arquear la zona lumbar al patear hacia atrás.' },
+  { id:'ma4', group:'Movilidad articular',
+    name:'Movilidad de Cadera 90/90 (Transiciones Dinámicas)',
+    muscle:'Rotadores de cadera',
+    musclesFull:'Rotadores internos y externos de la cadera (glúteo medio, piriforme, gemelos de la pelvis)',
+    desc:'Sentado con ambas rodillas flexionadas a 90°, una rotada externamente al frente y la otra internamente hacia el costado.',
+    exec:'Manteniendo los talones pivotando, rotar las rodillas hacia el techo y cambiarlas hacia el lado opuesto de forma fluida.',
+    errors:'Desplazar los talones del punto de origen. Perder la verticalidad del torso colapsando la espalda.' },
+  { id:'ma5', group:'Movilidad articular',
+    name:'Rotación Torácica con Apertura de Libro (Open Book)',
+    muscle:'Columna torácica',
+    musclesFull:'Columna torácica, erectores espinales, romboides, pectoral mayor',
+    desc:'Tumbado de lado, rodillas flexionadas a 90° apoyadas sobre una colchoneta. Brazos estirados al frente.',
+    exec:'Llevar el brazo superior hacia arriba y hacia atrás intentando tocar el suelo del lado opuesto, siguiendo el movimiento con la mirada.',
+    errors:'Permitir que las rodillas se separen o despeguen del suelo, convirtiendo la rotación en lumbar en lugar de torácica.' },
+  { id:'ma6', group:'Movilidad articular',
+    name:'Elongación Dinámica del Gato-Camello',
+    muscle:'Columna vertebral segmentaria',
+    musclesFull:'Articulaciones intervertebrales (cervical, torácica y lumbar), erectores, recto abdominal',
+    desc:'En cuadrupedia, manos bajo hombros y rodillas bajo caderas.',
+    exec:'Iniciar desde la pelvis redondeando la espalda vértebra por vértebra hacia el techo (flexión), luego hundir el abdomen y elevar la mirada (extensión) de forma fluida y segmentada.',
+    errors:'Moverse en bloque de forma brusca en lugar de buscar articulación fluida vértebra a vértebra.' },
+  { id:'ma7', group:'Movilidad articular',
+    name:'Flexo-Extensión de Tobillo (Peso en Rodilla)',
+    muscle:'Articulación del tobillo',
+    musclesFull:'Articulación talocrural, sóleo, tendón de Aquiles, tibial anterior',
+    desc:'En zancada baja con el pie delantero completamente apoyado en el suelo.',
+    exec:'Apoyar las manos sobre la rodilla delantera y empujarla activamente hacia adelante, pasando la línea de la punta del pie sin despegar el talón.',
+    errors:'Permitir que el talón se levante del suelo, anulando el trabajo de dorsiflexión. Rodilla que colapsa hacia adentro (valgo).' },
+  { id:'ma8', group:'Movilidad articular',
+    name:'Sentadilla Profunda con Rotación Torácica',
+    muscle:'Cadera, tobillo y columna torácica',
+    musclesFull:'Articulación coxofemoral, talocrural, columna torácica, glúteos, cuádriceps',
+    desc:'En posición de sentadilla profunda con talones apoyados y pecho lo más vertical posible.',
+    exec:'Sujetar el pie de un lado con la mano del mismo lado y elevar el brazo contrario hacia el techo rotando activamente el torso. Alternar lados.',
+    errors:'Despegar los talones del suelo. Perder la tensión de las rodillas permitiendo que se cierren hacia adentro.' },
+  { id:'ma9', group:'Movilidad articular',
+    name:'Desplazamientos Escapulares (Cuelgue Pasivo-Activo)',
+    muscle:'Articulación escapulotorácica',
+    musclesFull:'Articulación escapulotorácica, trapecio inferior, romboides, serrato anterior',
+    desc:'Colgado con los brazos completamente estirados de una barra de dominadas.',
+    exec:'Alternar entre cuelgue pasivo (hombros tocando las orejas) y cuelgue activo (deprimir y retraer las escápulas para elevar el cuerpo sin flexionar los codos).',
+    errors:'Flexionar los brazos usando la fuerza del bíceps en lugar de iniciar el movimiento exclusivamente desde las escápulas.' },
+  { id:'ma10', group:'Movilidad articular',
+    name:'Movilidad Cervical en Cruz',
+    muscle:'Articulación cervical',
+    musclesFull:'Articulación atlantoaxial y cervical, trapecio superior, escalenos, esternocleidomastoideo',
+    desc:'Sentado o de pie con hombros relajados y deprimidos.',
+    exec:'Realizar movimientos controlados en cruz: flexión (barbilla al pecho), extensión (mirada al techo) y rotaciones (mirar sobre cada hombro). NOTA: NO realizar circunduciones cervicales completas.',
+    errors:'Realizar circunduciones completas o giros circulares rápidos que pueden comprometer las estructuras cervicales. Elevar los hombros durante el movimiento.' },
+  { id:'ma11', group:'Movilidad articular',
+    name:'Círculos de Muñeca Entrelazados',
+    muscle:'Articulación de la muñeca',
+    musclesFull:'Articulaciones radiocarpiana y mediocarpiana',
+    desc:'De pie o sentado, con los dedos de ambas manos entrelazados firmemente frente al pecho.',
+    exec:'Rotar las muñecas de forma continua dibujando ochos o círculos fluidos en ambos sentidos, explorando el máximo rango de movimiento.',
+    errors:'Mover los codos de forma exagerada en lugar de aislar el movimiento en las muñecas.' },
+  { id:'ma12', group:'Movilidad articular',
+    name:'Rotación Interna de Hombro en Suelo (Sleeper Stretch Dinámico)',
+    muscle:'Rotadores externos del hombro y cápsula posterior',
+    musclesFull:'Infraespinoso, redondo menor, cápsula articular posterior glenohumeral',
+    desc:'Tumbado de lado, con el hombro del suelo flexionado a 90° al frente y el codo también a 90° apuntando al techo.',
+    exec:'Con la mano contraria, empujar suavemente el antebrazo hacia el suelo de forma intermitente (2 segundos y soltar). Mantener el ángulo de 90° en el hombro.',
+    errors:'Permitir que el hombro del suelo se despegue o adelante perdiendo el ángulo de 90°.' },
+  { id:'ma13', group:'Movilidad articular',
+    name:'Bisagra de Cadera Dinámica (Good Morning con Bastón)',
+    muscle:'Complejo lumbo-pélvico e isquiotibiales',
+    musclesFull:'Cadena posterior: isquiotibiales, glúteo mayor, erector espinal; control del complejo lumbo-pélvico',
+    desc:'De pie, sosteniendo un bastón alineado con la columna (toca cabeza, zona torácica y sacro).',
+    exec:'Empujar la cadera hacia atrás flexionando levemente las rodillas, manteniendo el bastón en contacto con los tres puntos. Regresar contrayendo los glúteos.',
+    errors:'Flexionar la columna lumbar perdiendo el contacto del bastón con el sacro. Realizar una sentadilla en lugar de una bisagra de cadera.' },
+  { id:'ma14', group:'Movilidad articular',
+    name:'Onda Espinal en Pared',
+    muscle:'Columna vertebral (control segmentario)',
+    musclesFull:'Control neuromuscular segmentario de toda la columna vertebral',
+    desc:'De pie frente a una pared, a la distancia de un paso corto.',
+    exec:'Tocar la pared con la barbilla, luego el pecho, el abdomen y la pelvis de forma secuencial y fluida, simulando una ola. Regresar en orden inverso.',
+    errors:'Golpear la pared de manera rígida o saltarse segmentos de la columna durante la transición.' },
+  { id:'ma15', group:'Movilidad articular',
+    name:'Zancada del Mundo (World\'s Greatest Stretch)',
+    muscle:'Cadera, columna torácica, tobillo e isquiotibiales',
+    musclesFull:'Articulaciones de cadera, tobillo y torácica; isquiotibiales, flexores de cadera, rotadores torácicos',
+    desc:'Zancada profunda con las dos manos apoyadas en el suelo en la parte interna del pie delantero.',
+    exec:'Llevar el codo interno hacia el suelo (cerca del tobillo) y luego abrir ese mismo brazo verticalmente hacia el techo rotando el torso. Mantener la pierna trasera extendida.',
+    errors:'Flexionar la rodilla de la pierna trasera (debe permanecer extendida y activa). Despegar la planta del pie delantero.' },
+  { id:'ma16', group:'Movilidad articular',
+    name:'Círculos de Tobillo en Suspensión',
+    muscle:'Articulación del tobillo',
+    musclesFull:'Articulación tibiotarsiana y subastragalina, músculos peroneos, tibial anterior',
+    desc:'Sentado en un banco o de pie sobre una pierna con el pie a evaluar suspendido en el aire.',
+    exec:'Dibujar círculos lentos y amplios con la punta del pie, pasando por inversión, eversión, flexión plantar y dorsiflexión máximas.',
+    errors:'Mover la rodilla o toda la pierna para simular el rango del tobillo. Realizar el movimiento demasiado rápido.' },
+  { id:'ma17', group:'Movilidad articular',
+    name:'Deslizamientos de Brazos en Pared (Wall Slides)',
+    muscle:'Articulación escapulotorácica y hombros',
+    musclesFull:'Estabilizadores de la escápula, trapecio medio e inferior, manguito rotador, movilidad glenohumeral',
+    desc:'De pie, con la espalda, cabeza y glúteos apoyados en la pared. Brazos en posición de "W" apoyados también en la pared.',
+    exec:'Deslizar los brazos hacia arriba hasta formar una "V" por encima de la cabeza, asegurando que los codos y las muñecas no pierdan contacto con la pared.',
+    errors:'Arquear la espalda baja separándola de la pared para lograr subir las manos. Despegar las muñecas de la pared.' },
+  { id:'ma18', group:'Movilidad articular',
+    name:'Abducción de Cadera Dinámica (Patadas Laterales Controladas)',
+    muscle:'Articulación de la cadera (plano frontal)',
+    musclesFull:'Articulación coxofemoral en plano frontal, glúteo medio, tensor de la fascia lata',
+    desc:'De pie apoyando las manos en una pared o baranda para mantener la estabilidad.',
+    exec:'Elevar una pierna hacia el costado de forma controlada sin inclinar el torso. Regresar cruzando levemente por delante de la otra pierna.',
+    errors:'Usar impulso (balanceo balístico) en lugar de fuerza muscular controlada. Inclinar el torso lateralmente.' },
+  { id:'ma19', group:'Movilidad articular',
+    name:'Flexión Dinámica de Muñecas en Cuadrupedia',
+    muscle:'Articulación de la muñeca (extensión)',
+    musclesFull:'Articulación radiocarpiana, flexores del antebrazo, cápsula articular de la muñeca',
+    desc:'En cuadrupedia, con las palmas apoyadas en el suelo pero con los dedos apuntando hacia las rodillas.',
+    exec:'Desplazar suavemente el peso hacia atrás incrementando el ángulo de extensión de la muñeca. Mantener 1-2 segundos y regresar al frente.',
+    errors:'Despegar la palma (zona del carpo) del suelo. Flexionar los codos durante el balanceo.' },
+  { id:'ma20', group:'Movilidad articular',
+    name:'Desplazamientos Laterales Cosacos (Cossack Squats)',
+    muscle:'Movilidad de cadera, aductores y tobillo',
+    musclesFull:'Articulación coxofemoral, aductores, rodilla y tobillo; movilidad en planos sagital y frontal simultáneos',
+    desc:'De pie con apertura de piernas amplia (doble del ancho de hombros).',
+    exec:'Desplazar el peso hacia un lado flexionando esa rodilla y manteniendo la pierna contraria completamente estirada (talón apoyado, punta hacia el techo). Alternar lados de forma fluida.',
+    errors:'Despegar el talón de la pierna que se flexiona. Colapsar el pecho y curvar la espalda baja hacia el suelo.' },
+
 ];
 
 let _currentLibExercise = null;
 let _libTargetInput = null;
 
 function renderLibrary() {
-  const groups = ['Todos', 'Pecho', 'Tren inferior', 'Espalda', 'Bíceps', 'Tríceps', 'Hombros', 'Glúteos', 'Core'];
+  const groups = ['Todos', ...new Set(EXERCISE_DB.map(e => e.group))];
   const total = EXERCISE_DB.length;
   document.getElementById('lib-count-badge').textContent = total + ' ejercicios';
 
@@ -7510,6 +7841,32 @@ if('serviceWorker' in navigator) {
           .catch(function(err) { console.log('SW error:', err); });
       });
     }
+
+    // Cargar email/pass recordados y preparar el login al iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+      if(typeof loadRememberedEmail === 'function') loadRememberedEmail();
+
+      // Indicar visualmente cuando Firebase está listo
+      var _fbReadyInterval = setInterval(function() {
+        if(window._fb) {
+          clearInterval(_fbReadyInterval);
+          var loginBtn = document.querySelector('#auth-login .btn-primary');
+          var regBtn   = document.querySelector('#auth-register .btn-primary');
+          if(loginBtn) loginBtn.textContent = 'Ingresar →';
+          if(regBtn)   regBtn.textContent   = 'Crear cuenta →';
+          console.log('[Lift OK] Firebase listo ✅');
+        }
+      }, 300);
+
+      // Timeout: si Firebase no carga en 8 segundos, mostrar error
+      setTimeout(function() {
+        if(!window._fb) {
+          clearInterval(_fbReadyInterval);
+          var errEl = document.getElementById('login-err');
+          if(errEl) errEl.textContent = '⚠️ No se pudo conectar. Verificá tu internet.';
+        }
+      }, 8000);
+    });
   </script>
 </body>
 </html>
