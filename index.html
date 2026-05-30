@@ -514,6 +514,15 @@ textarea { resize: vertical; min-height: 80px; }
           window._userData = data || { routines:[], loads:{}, history:[], anamnesis:null, settings:{}, sportFiles:[] };
           if(document.getElementById('screen-app') && !document.getElementById('screen-app').classList.contains('active')) {
             window.openApp();
+          } else if(document.getElementById('screen-app') && document.getElementById('screen-app').classList.contains('active')) {
+            // App ya abierta — actualizar páginas que muestran rutinas
+            const activePage = document.querySelector('.page.active');
+            if(activePage) {
+              const pid = activePage.id;
+              if(pid === 'page-workout')  renderWorkout();
+              if(pid === 'page-routines') renderRoutines();
+              if(pid === 'page-dashboard') renderDashboard();
+            }
           }
         } catch(e) {
           console.error('Error cargando datos:', e);
@@ -1802,7 +1811,7 @@ function renderWarnings(container,exNames=[]){
 //  DASHBOARD
 // ═══════════════════════════════════
 function renderDashboard(){
-  const d=getUserData(currentUser.uid);
+  const d = (window._userData && currentUser) ? window._userData : getUserData(currentUser.uid);
   const days=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const now=new Date();
   document.getElementById('dash-greeting').textContent='Hola, '+currentUser.name+' 💪';
@@ -1833,14 +1842,14 @@ function renderDashboard(){
 //  ROUTINES / ENTRENAMIENTOS
 // ═══════════════════════════════════
 function renderRoutines(){
-  const d=getUserData(currentUser.uid);
+  const d = (window._userData && currentUser) ? window._userData : getUserData(currentUser.uid);
   const el=document.getElementById('routines-list');
   if(!d.routines.length){el.innerHTML=`<div class="empty-state"><div class="icon">📋</div><p>No tenés entrenamientos creados.</p><button class="btn btn-primary" onclick="openRoutineEditor()">+ Crear primer entrenamiento</button></div>`;return;}
   el.innerHTML=d.routines.map(r=>`
     <div class="routine-card">
       <div class="routine-card-info">
         <h3>${r.name}</h3>
-        <p>${r.protocol} · ${r.days.length} días · ${r.days.reduce((a,d)=>a+d.exercises.length,0)} ejercicios</p>
+        <p>${r.protocol} · ${r.days.length} días · ${r.days.reduce((a,day)=>a+getDayExercisesArray(day).length,0)} ejercicios</p>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${r.days.map((d,i)=>`<span class="tag">Día ${i+1}: ${d.muscle||'—'}</span>`).join('')}</div>
       </div>
       <div class="routine-actions">
@@ -1872,34 +1881,58 @@ function viewRoutine(id) {
   const r = d.routines.find(x => x.id === id);
   if(!r) return;
 
-  // Construir HTML de vista detallada
-  const daysHtml = r.days.map((day, di) => {
-    if(!day.exercises || !day.exercises.length) return '';
-    const exHtml = day.exercises.map((ex, ei) => {
-      const blocksHtml = (ex.seriesBlocks || []).map(sb =>
-        `<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted);padding:3px 0">
-          <span style="background:rgba(200,230,58,0.1);color:var(--lime);border-radius:4px;padding:2px 7px;font-weight:700">${sb.series}×${sb.reps}</span>
-          <span>${sb.rir || ''}</span>
-          ${sb.pct ? `<span style="color:var(--text-dim)">${sb.pct}</span>` : ''}
-        </div>`
-      ).join('');
-      return `<div style="background:var(--surface3);border-radius:8px;padding:10px 12px;margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span style="background:var(--lime);color:#000;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">${ei+1}</span>
-          <span style="font-size:14px;font-weight:600;color:var(--text)">${ex.name}</span>
-          <span style="font-size:11px;color:var(--text-muted);margin-left:auto">⏱ ${ex.rest||90}s</span>
-        </div>
-        ${blocksHtml}
-        ${ex.notas ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-style:italic">📝 ${ex.notas}</div>` : ''}
-      </div>`;
-    }).join('');
+  // Construir HTML de vista detallada con secciones
+  const VIEW_SEC_COLORS = {
+    warmup:   {color:'#FF9800', bg:'rgba(255,152,0,0.08)', border:'rgba(255,152,0,0.3)', label:'🔥 Entrada en calor'},
+    main:     {color:'#C8E63A', bg:'rgba(200,230,58,0.06)', border:'rgba(200,230,58,0.3)', label:'⚡ Parte principal'},
+    cooldown: {color:'#5ab4f5', bg:'rgba(90,180,245,0.08)', border:'rgba(90,180,245,0.3)', label:'🧘 Vuelta a la calma'},
+  };
 
-    return `<div style="margin-bottom:1.2rem">
-      <div style="font-size:11px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border-lime)">
-        📅 Día ${di+1}${day.muscle ? ' — ' + day.muscle : ''}
-      </div>
-      ${exHtml}
-    </div>`;
+  function _exBlockHtml(ex, ei) {
+    const blocksHtml = (ex.seriesBlocks || []).map(sb =>
+      '<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted);padding:3px 0">'
+      + '<span style="background:rgba(200,230,58,0.1);color:var(--lime);border-radius:4px;padding:2px 7px;font-weight:700">'+sb.series+'×'+sb.reps+'</span>'
+      + '<span>'+(sb.rir||'')+'</span>'
+      + (sb.pct ? '<span style="color:var(--text-dim)">'+sb.pct+'</span>' : '')
+      + '</div>'
+    ).join('');
+    return '<div style="background:var(--surface3);border-radius:8px;padding:10px 12px;margin-bottom:6px">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:'+(blocksHtml?'6px':'0')+'">'
+      + '<span style="background:var(--lime);color:#000;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+(ei+1)+'</span>'
+      + '<span style="font-size:14px;font-weight:600;color:var(--text)">'+ex.name+'</span>'
+      + '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">⏱ '+(ex.rest||90)+'s</span>'
+      + '</div>'
+      + blocksHtml
+      + (ex.notas ? '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-style:italic">📝 '+ex.notas+'</div>' : '')
+      + '</div>';
+  }
+
+  const daysHtml = r.days.map((day, di) => {
+    const nd = normalizeDaySections(day);
+    // Construir HTML de secciones activas con ejercicios
+    let secHtml = '';
+    let totalEx = 0;
+    for (const key of ['warmup','main','cooldown']) {
+      const sec = nd.sections[key];
+      if (!sec || !sec.active || !sec.exercises.length) continue;
+      const sc = VIEW_SEC_COLORS[key];
+      const exRows = sec.exercises.map((ex, ei) => _exBlockHtml(ex, ei)).join('');
+      secHtml += '<div style="margin-bottom:10px">'
+        + '<div style="background:'+sc.bg+';border:1px solid '+sc.border+';border-radius:8px;padding:6px 12px;margin-bottom:6px;display:flex;align-items:center;gap:6px">'
+        + '<span style="font-size:12px;font-weight:700;color:'+sc.color+';text-transform:uppercase;letter-spacing:0.04em">'+sc.label+'</span>'
+        + '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">'+sec.exercises.length+' ejercicio'+(sec.exercises.length!==1?'s':'')+'</span>'
+        + '</div>'
+        + exRows
+        + '</div>';
+      totalEx += sec.exercises.length;
+    }
+    if (!totalEx) return '';
+    return '<div style="margin-bottom:1.4rem">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--border-lime)">'
+      + '📅 Día '+(di+1)+(nd.muscle?' — '+nd.muscle:'')
+      + '</div>'
+      + secHtml
+      + '</div>';
   }).filter(Boolean).join('');
 
   // Crear modal de vista
@@ -1916,7 +1949,7 @@ function viewRoutine(id) {
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--lime);letter-spacing:0.05em;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
-            ${r.protocol} · ${r.days.length} días · ${r.days.reduce((a,d)=>a+d.exercises.length,0)} ejercicios
+            ${r.protocol} · ${r.days.length} días · ${r.days.reduce((a,day)=>a+getDayExercisesArray(day).length,0)} ejercicios
           </div>
         </div>
         <button onclick="document.getElementById('modal-view-routine').remove()"
@@ -1970,28 +2003,94 @@ function buildDayTabs(existingR=null){
   }
   const d=getUserData(currentUser.uid);
   const r=editingRoutineId?d.routines.find(x=>x.id===editingRoutineId):null;
-  const dayData=currentDayCache[currentDayIdx]||(r||existingR)?.days?.[currentDayIdx]||{muscle:'',exercises:[]};
+  const _rawDay = currentDayCache[currentDayIdx]
+               || (r||existingR)?.days?.[currentDayIdx]
+               || null;
+  const dayData = _rawDay ? normalizeDaySections(_rawDay) : { muscle:'', sections: _emptySections() };
   renderDayEditor(dayData);
 }
 
 function renderDayEditor(dayData){
-  const el=document.getElementById('r-day-content');
-  el.innerHTML=`
+  const el = document.getElementById('r-day-content');
+  const nd = normalizeDaySections(dayData);
+  const secs = [
+    { key:'warmup',   label:'🔥 Entrada en calor',   color:'#FF9800', colorBg:'rgba(255,152,0,0.08)',   borderColor:'rgba(255,152,0,0.3)'  },
+    { key:'main',     label:'⚡ Parte principal',     color:'var(--lime)', colorBg:'rgba(200,230,58,0.06)', borderColor:'var(--border-lime)' },
+    { key:'cooldown', label:'🧘 Vuelta a la calma',   color:'#5ab4f5', colorBg:'rgba(90,180,245,0.06)',  borderColor:'rgba(90,180,245,0.3)' },
+  ];
+
+  el.innerHTML = `
     <div class="form-group" style="margin-bottom:1rem">
       <label>Grupos musculares del día</label>
-      <input type="text" id="day-muscle" placeholder="Ej: Pectorales / Bíceps" value="${dayData.muscle||''}" />
+      <input type="text" id="day-muscle" placeholder="Ej: Pectorales / Bíceps" value="${nd.muscle||''}" />
     </div>
-    <div id="exercises-container">
-      ${(dayData.exercises||[]).map((ex,i)=>exerciseBlockHTML(ex,i)).join('')}
-    </div>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-    <button class="btn btn-ghost btn-sm" onclick="addExerciseBlock()">+ Ejercicio manual</button>
-    <button class="btn btn-ghost btn-sm" style="color:var(--lime);border-color:var(--border-lime)" onclick="openLibraryFromEditor()">📚 Buscar en biblioteca</button>
-  </div>
+    ${secs.map(s => {
+      const sec = nd.sections[s.key];
+      const exHtml = sec.active
+        ? `<div id="exercises-container-${s.key}" style="margin-top:8px">
+            ${(sec.exercises||[]).map((ex,i) => exerciseBlockHTML(ex, i, s.key)).join('')}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="addExerciseBlock('${s.key}')">+ Ejercicio manual</button>
+            <button class="btn btn-ghost btn-sm" style="color:${s.color};border-color:${s.borderColor}" onclick="openLibraryFromEditor('${s.key}')">📚 Biblioteca</button>
+          </div>`
+        : '';
+      return `
+        <div style="border:1px solid ${s.borderColor};border-radius:12px;margin-bottom:12px;overflow:hidden">
+          <div style="background:${s.colorBg};padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+               onclick="toggleSection('${s.key}',this)">
+            <span style="font-weight:700;font-size:13px;color:${s.color};letter-spacing:0.04em">${s.label}</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${sec.active ? `<span style="font-size:11px;color:var(--text-muted)">${(sec.exercises||[]).length} ejercicio${(sec.exercises||[]).length!==1?'s':''}</span>` : ''}
+              <span style="font-size:18px;transition:transform 0.2s;display:inline-block;transform:${sec.active?'rotate(0deg)':'rotate(-90deg)'}"
+                    id="sec-arrow-${s.key}">▾</span>
+            </div>
+          </div>
+          <div id="sec-body-${s.key}" style="display:${sec.active?'block':'none'};padding:${sec.active?'12px 14px':'0 14px'}">
+            ${exHtml}
+          </div>
+        </div>`;
+    }).join('')}
   `;
 }
 
-function exerciseBlockHTML(ex={},ei=0){
+function toggleSection(key, headerEl) {
+  const body  = document.getElementById('sec-body-' + key);
+  const arrow = document.getElementById('sec-arrow-' + key);
+  const isOpen = body.style.display !== 'none';
+  // Si ya estaba abierto → colapsar pero NO desactivar (solo esconder)
+  // Si estaba cerrado → abrir y activar
+  if(isOpen) {
+    body.style.display = 'none';
+    body.style.padding = '0 14px';
+    if(arrow) arrow.style.transform = 'rotate(-90deg)';
+  } else {
+    body.style.display = 'block';
+    body.style.padding = '12px 14px';
+    if(arrow) arrow.style.transform = 'rotate(0deg)';
+    // Activar la sección si no lo estaba
+    if(!document.getElementById('exercises-container-' + key)) {
+      const sec = _getCurrentSectionData(key);
+      body.innerHTML = `
+        <div id="exercises-container-${key}" style="margin-top:0">
+          ${(sec.exercises||[]).map((ex,i) => exerciseBlockHTML(ex, i, key)).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="addExerciseBlock('${key}')">+ Ejercicio manual</button>
+          <button class="btn btn-ghost btn-sm" onclick="openLibraryFromEditor('${key}')">📚 Biblioteca</button>
+        </div>`;
+    }
+  }
+}
+
+function _getCurrentSectionData(key) {
+  // Leer ejercicios ya guardados en caché para esa sección
+  const cached = currentDayCache[currentDayIdx];
+  if(cached && cached.sections && cached.sections[key]) return cached.sections[key];
+  return { active: false, exercises: [] };
+}
+
+function exerciseBlockHTML(ex={},ei=0,section='main'){
   const seriesRows=(ex.seriesBlocks||[{series:'3',reps:'10',rir:'RIR 2'}]).map((sb,si)=>seriesRowHTML(sb,ei,si)).join('');
   const notasVal=(ex.notas||'').replace(/"/g,'&quot;');
   return `<div class="ex-block" id="exblock-${ei}">
@@ -2026,11 +2125,17 @@ function seriesRowHTML(sb={},ei=0,si=0){
   </div>`;
 }
 
-function addExerciseBlock(){
-  const c=document.getElementById('exercises-container');
-  const i=c.children.length;
-  c.insertAdjacentHTML('beforeend',exerciseBlockHTML({},i));
-  c.querySelectorAll('.ex-block').forEach((b,idx)=>{b.id='exblock-'+idx;b.querySelector('.badge-lime').textContent=idx+1;});
+function addExerciseBlock(section='main'){
+  const c = document.getElementById('exercises-container-' + section)
+         || document.getElementById('exercises-container');
+  if(!c) return;
+  const i = c.querySelectorAll('.ex-block').length;
+  c.insertAdjacentHTML('beforeend', exerciseBlockHTML({}, i, section));
+  c.querySelectorAll('.ex-block').forEach((b,idx) => {
+    b.id = 'exblock-' + section + '-' + idx;
+    const badge = b.querySelector('.badge-lime');
+    if(badge) badge.textContent = idx + 1;
+  });
 }
 
 function addSeriesRow(btn){
@@ -2039,95 +2144,160 @@ function addSeriesRow(btn){
 }
 
 function saveCurrentDayToCache(){
-  const muscle=document.getElementById('day-muscle')?.value||'';
-  const blocks=document.querySelectorAll('.ex-block');
-  const exercises=[];
-  blocks.forEach(block=>{
-    const name=block.querySelector('.ex-name')?.value?.trim();
-    if(!name)return;
-    const rest=block.querySelector('.ex-rest')?.value||'90';
-    const notas=block.querySelector('.ex-notas')?.value||'';
-    const seriesBlocks=[];
-    block.querySelectorAll('.series-row').forEach(row=>{
-      seriesBlocks.push({
-        series:row.querySelector('.sb-series')?.value||'3',
-        reps:row.querySelector('.sb-reps')?.value||'10',
-        rir:row.querySelector('.sb-rir')?.value||'RIR 2',
-        pct:row.querySelector('.sb-pct')?.value||'',
+  const muscle = document.getElementById('day-muscle')?.value || '';
+
+  function _readExercisesFromContainer(containerId) {
+    const c = document.getElementById(containerId);
+    if(!c) return [];
+    const exercises = [];
+    c.querySelectorAll('.ex-block').forEach(block => {
+      const name = block.querySelector('.ex-name')?.value?.trim();
+      if(!name) return;
+      const rest = block.querySelector('.ex-rest')?.value || '90';
+      const notas = block.querySelector('.ex-notas')?.value || '';
+      const seriesBlocks = [];
+      block.querySelectorAll('.series-row').forEach(row => {
+        seriesBlocks.push({
+          series: row.querySelector('.sb-series')?.value || '3',
+          reps:   row.querySelector('.sb-reps')?.value   || '10',
+          rir:    row.querySelector('.sb-rir')?.value    || 'RIR 2',
+          pct:    row.querySelector('.sb-pct')?.value    || '',
+        });
       });
+      // Garantizar que seriesBlocks siempre tenga al menos 1 entrada
+      if(!seriesBlocks.length) seriesBlocks.push({series:'3',reps:'10',rir:'RIR 2',pct:''});
+      exercises.push({ name, rest, notas, seriesBlocks });
     });
-    exercises.push({name,rest,notas,seriesBlocks});
-  });
-  currentDayCache[currentDayIdx]={muscle,exercises};
+    return exercises;
+  }
+
+  // El nuevo editor siempre genera sec-body-* — siempre usar formato nuevo
+  const isNewFormat = !!document.getElementById('sec-body-main')
+                   || !!document.getElementById('exercises-container-main');
+
+  if(isNewFormat) {
+    // Leer el caché anterior para preservar ejercicios de secciones colapsadas
+    const _prevCache = currentDayCache[currentDayIdx];
+    const sections = {};
+    for(const key of ['warmup','main','cooldown']) {
+      const bodyEl    = document.getElementById('sec-body-' + key);
+      const container = document.getElementById('exercises-container-' + key);
+      const isOpen    = bodyEl ? bodyEl.style.display !== 'none' : (key === 'main');
+
+      let exercises;
+      if(container) {
+        // El contenedor existe → leer del DOM (puede estar abierto o cerrado)
+        exercises = _readExercisesFromContainer('exercises-container-' + key);
+      } else if(_prevCache?.sections?.[key]?.exercises) {
+        // El contenedor no existe en el DOM (sección nunca expandida) → preservar del caché
+        exercises = _prevCache.sections[key].exercises;
+      } else {
+        exercises = [];
+      }
+
+      sections[key] = { active: isOpen, exercises };
+    }
+    currentDayCache[currentDayIdx] = { muscle, sections };
+  } else {
+    // Fallback: formato viejo (no debería llegar acá con el nuevo editor)
+    currentDayCache[currentDayIdx] = {
+      muscle,
+      sections: {
+        warmup:   { active: false, exercises: [] },
+        main:     { active: true,  exercises: _readExercisesFromContainer('exercises-container') },
+        cooldown: { active: false, exercises: [] },
+      }
+    };
+  }
 }
 
 function collectAllDays(){
   saveCurrentDayToCache();
-  const n=parseInt(document.getElementById('r-days').value);
-  const days=[];
-  const d=getUserData(currentUser.uid);
-  const existingR=editingRoutineId?d.routines.find(x=>x.id===editingRoutineId):null;
-  for(let i=0;i<n;i++){
-    if(currentDayCache[i]) days.push(currentDayCache[i]);
-    else if(existingR?.days?.[i]) days.push(existingR.days[i]);
-    else days.push({muscle:'',exercises:[]});
+  const n = parseInt(document.getElementById('r-days').value);
+  const days = [];
+  const d = getUserData(currentUser.uid);
+  const existingR = editingRoutineId ? d.routines.find(x => x.id === editingRoutineId) : null;
+  for(let i = 0; i < n; i++){
+    if(currentDayCache[i])           days.push(currentDayCache[i]);
+    else if(existingR?.days?.[i])    days.push(normalizeDaySections(existingR.days[i]));
+    else                             days.push({ muscle:'', sections: _emptySections() });
   }
   return days;
 }
 
 function saveRoutine(){
-  const name=document.getElementById('r-name').value.trim();
-  if(!name){alert('Poné un nombre al entrenamiento.');return;}
-  const days=collectAllDays();
-  const d=getUserData(currentUser.uid);
-  if(editingRoutineId){
-    const r=d.routines.find(x=>x.id===editingRoutineId);
-    r.name=name; r.protocol=document.getElementById('r-protocol').value; r.days=days;
-  } else {
-    d.routines.push({id:'r_'+Date.now(),name,protocol:document.getElementById('r-protocol').value,days,createdAt:Date.now()});
+  try {
+    const name=document.getElementById('r-name').value.trim();
+    if(!name){alert('Poné un nombre al entrenamiento.');return;}
+    const days=collectAllDays();
+    if(!days || !days.length){alert('❌ Error al leer los días del entrenamiento. Intentá de nuevo.');return;}
+    const d=getUserData(currentUser.uid);
+    if(!d){alert('❌ Error al acceder a los datos. Cerrá sesión y volvé a ingresar.');return;}
+    if(editingRoutineId){
+      const r=d.routines.find(x=>x.id===editingRoutineId);
+      if(!r){alert('❌ No se encontró el entrenamiento a editar.');return;}
+      r.name=name; r.protocol=document.getElementById('r-protocol').value; r.days=days;
+    } else {
+      if(!d.routines) d.routines=[];
+      d.routines.push({id:'r_'+Date.now(),name,protocol:document.getElementById('r-protocol').value,days,createdAt:Date.now()});
+    }
+    setUserData(currentUser.uid,d);
+    closeRoutineModal();
+    renderRoutines();
+    updateLoadsExerciseList();
+    showToast('✅ Entrenamiento "'+name+'" guardado');
+  } catch(err) {
+    console.error('Error guardando rutina:', err);
+    alert('❌ Error al guardar: ' + (err.message || 'Intentá de nuevo.'));
   }
-  setUserData(currentUser.uid,d);
-  closeRoutineModal();
-  renderRoutines();
-  updateLoadsExerciseList();
 }
 
 // ═══════════════════════════════════
 //  WORKOUT SESSION
 // ═══════════════════════════════════
 function renderWorkout(){
-  const d=getUserData(currentUser.uid);
-  const sel=document.getElementById('workout-routine-selector');
-  const content=document.getElementById('workout-content');
+  const d = window._userData || getUserData(currentUser.uid);
+  const sel     = document.getElementById('workout-routine-selector');
+  const content = document.getElementById('workout-content');
 
+  // Si hay sesión activa, mostrar el banner y reconstruir contenido
   if(activeSession){
-    const elapsed=Math.floor((Date.now()-activeSession.startTs)/1000);
-    const mm=String(Math.floor(elapsed/60)).padStart(2,'0');
-    const ss=String(elapsed%60).padStart(2,'0');
-    sel.innerHTML=`<div class="card" style="margin-bottom:1rem;background:rgba(200,230,58,0.08);border-color:var(--border-lime);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-size:12px;color:var(--lime);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">⚡ Sesión en curso</div>
-        <div style="font-size:15px;font-weight:600;margin-top:2px">${activeSession.routineName} — Día ${activeSession.dayIdx+1}${activeSession.dayMuscle?' ('+activeSession.dayMuscle+')':''}</div>
-      </div>
-      <div id="workout-timer" style="font-family:'DM Mono',monospace;font-size:1.5rem;color:var(--lime)">${mm}:${ss}</div>
-    </div>`;
-    if(!content.children.length || content.querySelector('.empty-state')){
-      rebuildWorkoutContent();
-    }
+    const elapsed = Math.floor((Date.now()-activeSession.startTs)/1000);
+    const mm = String(Math.floor(elapsed/60)).padStart(2,'0');
+    const ss = String(elapsed%60).padStart(2,'0');
+    sel.innerHTML = '<div class="card" style="margin-bottom:1rem;background:rgba(200,230,58,0.08);border-color:var(--border-lime);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
+      + '<div>'
+      + '<div style="font-size:12px;color:var(--lime);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">⚡ Sesión en curso</div>'
+      + '<div style="font-size:15px;font-weight:600;margin-top:2px">'+activeSession.routineName+' — Día '+(activeSession.dayIdx+1)+(activeSession.dayMuscle?' ('+activeSession.dayMuscle+')':'')+'</div>'
+      + '</div>'
+      + '<div id="workout-timer" style="font-family:\'DM Mono\',monospace;font-size:1.5rem;color:var(--lime)">'+mm+':'+ss+'</div>'
+      + '</div>';
+    if(!content.children.length || content.querySelector('.empty-state')) rebuildWorkoutContent();
     return;
   }
 
-  if(!d.routines.length){
-    sel.innerHTML='<div class="empty-state"><div class="icon">⚡</div><p>Primero creá un entrenamiento.</p><button class="btn btn-primary" onclick="navigateTo(\'routines\')">Crear entrenamiento</button></div>';
-    content.innerHTML=''; return;
+  // Sin rutinas
+  if(!d.routines || !d.routines.length){
+    sel.innerHTML = '<div class="empty-state"><div class="icon">⚡</div><p>Primero creá un entrenamiento.</p><button class="btn btn-primary" onclick="navigateTo(\'routines\')">Crear entrenamiento</button></div>';
+    content.innerHTML = '';
+    return;
   }
-  sel.innerHTML=`<div class="card" style="margin-bottom:1rem;display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
-    <div class="form-group" style="flex:1;margin:0"><label>Entrenamiento</label>
-      <select id="sel-routine" onchange="selectWorkoutDay()">${d.routines.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}</select>
-    </div>
-    <div class="form-group" style="flex:1;margin:0"><label>Día</label><select id="sel-day" onchange="loadWorkoutSession()"></select></div>
-    <button class="btn btn-primary" onclick="loadWorkoutSession(true)">⚡ Iniciar sesión</button>
-  </div>`;
+
+  // Llenar el selector con TODAS las rutinas
+  const optionsHtml = d.routines.map(function(r){
+    return '<option value="'+r.id+'">'+r.name+'</option>';
+  }).join('');
+
+  sel.innerHTML = '<div class="card" style="margin-bottom:1rem;display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">'
+    + '<div class="form-group" style="flex:1;margin:0"><label>Entrenamiento</label>'
+    + '<select id="sel-routine" onchange="selectWorkoutDay()">'+optionsHtml+'</select>'
+    + '</div>'
+    + '<div class="form-group" style="flex:1;margin:0"><label>Día</label>'
+    + '<select id="sel-day" onchange="loadWorkoutSession()"></select>'
+    + '</div>'
+    + '<button class="btn btn-primary" onclick="loadWorkoutSession(true)">⚡ Iniciar sesión</button>'
+    + '</div>';
+
   selectWorkoutDay();
 }
 
@@ -2138,12 +2308,31 @@ function rebuildWorkoutContent(){
   const day=r.days[activeSession.dayIdx];
   const content=document.getElementById('workout-content');
   content.innerHTML='';
-  day.exercises.forEach((ex,ei)=>{
+  let _rebuildEi = 0;
+  getDayExercisesFlat(day).forEach(item => {
+    if(item._sectionSep) {
+      const COLORS2 = {
+        warmup:   {color:'#FF9800', bg:'rgba(255,152,0,0.08)', border:'rgba(255,152,0,0.25)'},
+        main:     {color:'var(--lime)', bg:'rgba(200,230,58,0.06)', border:'var(--border-lime)'},
+        cooldown: {color:'#5ab4f5', bg:'rgba(90,180,245,0.08)', border:'rgba(90,180,245,0.25)'},
+      };
+      const c2 = COLORS2[item._sectionKey] || COLORS2.main;
+      const sep = document.createElement('div');
+      sep.style.cssText = `background:${c2.bg};border:1px solid ${c2.border};border-radius:10px;
+        padding:8px 14px;margin:14px 0 6px;display:flex;align-items:center;gap:8px`;
+      sep.innerHTML = `<span style="font-size:13px;font-weight:700;color:${c2.color};
+        letter-spacing:0.06em;text-transform:uppercase">${item._sectionLabel}</span>`;
+      content.appendChild(sep);
+      return;
+    }
+    const ex = item;
+    const ei = _rebuildEi++;
     const allSets=activeSession.sets[ei]||[];
     let setsHTML=`<table class="sets-table"><thead><tr><th>Serie</th><th>Objetivo</th><th>RIR</th><th>Reps reales</th><th>Kg</th><th>✓</th></tr></thead><tbody>`;
     allSets.forEach((set,si)=>{
       const rirBadge=set.rir==='Al Fallo'?'<span class="badge badge-red">FALLO</span>':`<span class="badge badge-amber">${set.rir||'RIR 2'}</span>`;
-      const prData=getPRs()[ex.name];const prKg=prData?.kg||0;
+      const _repTarget = parseInt(set.reps) || 0;
+      const prKg = getLastWeightForReps(ex.name, _repTarget);
       setsHTML+=`<tr>
         <td style="color:var(--text-muted)">${si+1}</td>
         <td><span class="badge badge-lime">${set.reps}</span></td>
@@ -2188,12 +2377,27 @@ function rebuildWorkoutContent(){
 
 
 function selectWorkoutDay(){
-  const rid=document.getElementById('sel-routine').value;
-  const d=getUserData(currentUser.uid);
-  const r=d.routines.find(x=>x.id===rid);
-  const sel=document.getElementById('sel-day');
-  sel.innerHTML=r.days.map((day,i)=>`<option value="${i}">Día ${i+1} – ${day.muscle||'Sin especificar'}</option>`).join('');
-  loadWorkoutSession();
+  try {
+    const rid = document.getElementById('sel-routine').value;
+    const d   = window._userData || getUserData(currentUser.uid);
+    const r   = (d.routines || []).find(function(x){ return x.id === rid; });
+    if(!r || !r.days) { console.warn('selectWorkoutDay: rutina no encontrada o sin días', rid); return; }
+    const sel = document.getElementById('sel-day');
+    sel.innerHTML = r.days.map(function(day, i){
+      try {
+        const nd  = normalizeDaySections(day);
+        const nEx = getDayExercisesArray(nd).length;
+        const muscle = nd.muscle || 'Sin especificar';
+        return '<option value="'+i+'">Día '+(i+1)+' – '+muscle+'</option>';
+      } catch(e2) {
+        console.warn('selectWorkoutDay: error en día '+i, e2);
+        return '<option value="'+i+'">Día '+(i+1)+'</option>';
+      }
+    }).join('');
+    loadWorkoutSession();
+  } catch(e) {
+    console.error('selectWorkoutDay error:', e);
+  }
 }
 
 function startWorkout(rid){
@@ -2203,97 +2407,122 @@ function startWorkout(rid){
 
 function loadWorkoutSession(start=false){
   const rid=document.getElementById('sel-routine').value;
-  const dayIdx=parseInt(document.getElementById('sel-day').value);
-  const d=getUserData(currentUser.uid);
-  const r=d.routines.find(x=>x.id===rid);
-  const day=r.days[dayIdx];
-  const exNames=day.exercises.map(e=>e.name);
+  const dayIdx=parseInt(document.getElementById('sel-day').value)||0;
+  const d=window._userData||getUserData(currentUser.uid);
+  const r=(d.routines||[]).find(x=>x.id===rid);
+  if(!r||!r.days){console.warn('loadWorkoutSession: rutina no encontrada',rid);return;}
+  const day=r.days[dayIdx]||r.days[0];
+  if(!day){console.warn('loadWorkoutSession: día no encontrado',dayIdx);return;}
+  const _flatExs = getDayExercisesFlat(day);
+  const exNames = _flatExs.filter(x=>!x._sectionSep).map(e=>e.name);
   renderWarnings(document.getElementById('workout-warnings'),exNames);
   if(!start){document.getElementById('workout-content').innerHTML='';return;}
   if(workoutTimer)clearInterval(workoutTimer);
   workoutSeconds=0;
-  // Guardamos timestamp real de inicio para recalcular si el celular se bloquea
   const _sessionStart = Date.now();
   workoutTimer=setInterval(()=>{
-    // Recalculamos desde timestamp real — resistente a pausas por bloqueo de pantalla
     workoutSeconds = Math.floor((Date.now() - _sessionStart) / 1000);
     const m=String(Math.floor(workoutSeconds/60)).padStart(2,'0');
     const s=String(workoutSeconds%60).padStart(2,'0');
     const el=document.getElementById('workout-timer');
     if(el) el.textContent=m+':'+s;
   },1000);
-  // Page Visibility: cuando vuelve de segundo plano, actualiza inmediatamente
   document._ftTimerStart = _sessionStart;
   activeSession={routineId:rid,routineName:r.name,dayIdx,dayMuscle:day.muscle,sets:{},startTs:_sessionStart};
   const content=document.getElementById('workout-content');
   content.innerHTML='';
-  if(!day.exercises.length){content.innerHTML='<div class="empty-state"><p>Este día no tiene ejercicios. Editá el entrenamiento.</p></div>';return;}
 
-  day.exercises.forEach((ex,ei)=>{
-    activeSession.sets[ei]=[];
-    // Expand seriesBlocks into individual sets
-    const allSets=[];
+  const _workoutItems = getDayExercisesFlat(day);
+  const _realExs = _workoutItems.filter(x => !x._sectionSep);
+  if(!_realExs.length){
+    content.innerHTML='<div class="empty-state"><p>Este día no tiene ejercicios. Editá el entrenamiento.</p></div>';
+    return;
+  }
+
+  // Inicializar todos los sets antes de renderizar
+  _realExs.forEach((ex, ei) => {
+    const allSetsInit = [];
     (ex.seriesBlocks||[{series:'3',reps:'10',rir:'RIR 2'}]).forEach(sb=>{
       const n=parseInt(sb.series)||1;
-      for(let s=0;s<n;s++) allSets.push({done:false,weight:'',reps:sb.reps,rir:sb.rir,realReps:'',blockReps:sb.reps});
+      for(let s=0;s<n;s++) allSetsInit.push({done:false,weight:'',reps:sb.reps,rir:sb.rir,realReps:'',blockReps:sb.reps});
     });
-    activeSession.sets[ei]=allSets;
-    // Guardar rest explícitamente para no depender de Firebase en tiempo real
+    activeSession.sets[ei] = allSetsInit;
     if(!activeSession.rests) activeSession.rests = {};
     activeSession.rests[ei] = parseInt(ex.rest) || 90;
+  });
 
-    let setsHTML=`<table class="sets-table">
-      <thead><tr><th>Serie</th><th>Objetivo</th><th>RIR</th><th>Reps reales</th><th>Kg</th><th>✓</th></tr></thead><tbody>`;
+  // Guardar nombres para historial
+  const _sessionExNames2 = {};
+  _realExs.forEach((ex, i) => { _sessionExNames2[i] = ex.name; });
+  activeSession.exerciseNames = _sessionExNames2;
+
+  // Renderizar ejercicios con separadores de sección
+  const SECT_COLORS = {
+    warmup:   {color:'#FF9800', bg:'rgba(255,152,0,0.08)', border:'rgba(255,152,0,0.25)'},
+    main:     {color:'var(--lime)', bg:'rgba(200,230,58,0.06)', border:'var(--border-lime)'},
+    cooldown: {color:'#5ab4f5', bg:'rgba(90,180,245,0.08)', border:'rgba(90,180,245,0.25)'},
+  };
+  let _eiCounter = 0;
+  _workoutItems.forEach(item => {
+    if(item._sectionSep) {
+      const c = SECT_COLORS[item._sectionKey] || SECT_COLORS.main;
+      const sep = document.createElement('div');
+      sep.style.cssText = 'background:'+c.bg+';border:1px solid '+c.border+';border-radius:10px;padding:8px 14px;margin:14px 0 6px;display:flex;align-items:center;gap:8px';
+      sep.innerHTML = '<span style="font-size:13px;font-weight:700;color:'+c.color+';letter-spacing:0.06em;text-transform:uppercase">'+item._sectionLabel+'</span>';
+      content.appendChild(sep);
+      return;
+    }
+    const ex = item;
+    const ei = _eiCounter++;
+    const allSets = activeSession.sets[ei] || [];
+    let setsHTML='<table class="sets-table"><thead><tr><th>Serie</th><th>Objetivo</th><th>RIR</th><th>Reps reales</th><th>Kg</th><th>\u2713</th></tr></thead><tbody>';
     allSets.forEach((set,si)=>{
-      const rirBadge=set.rir==='Al Fallo'?`<span class="badge badge-red">FALLO</span>`:`<span class="badge badge-amber">${set.rir}</span>`;
-      const prData = getPRs()[ex.name];
-      const prKg = prData?.kg || 0;
-      setsHTML+=`<tr>
-        <td style="color:var(--text-muted)">${si+1}</td>
-        <td><span class="badge badge-lime">${set.reps}</span></td>
-        <td>${rirBadge}</td>
-        <td><input type="number" min="0" style="width:60px;padding:4px 6px;font-size:13px" placeholder="—" onchange="updateSet(${ei},${si},'realReps',this.value)" /></td>
-        <td style="position:relative">
-          <input type="number" min="0" step="0.5" style="width:70px;padding:4px 6px;font-size:13px" placeholder="${prKg?prKg+'kg':'kg'}"
-            onchange="updateSet(${ei},${si},'weight',this.value);checkLivePR(this,${ei},${si},'${ex.name}')" />
-          <span id="pr-ind-${ei}-${si}" style="position:absolute;right:-22px;top:50%;transform:translateY(-50%);font-size:14px;display:none">🏆</span>
-        </td>
-        <td><button class="set-check" id="sc-${ei}-${si}" onclick="toggleSet(${ei},${si})"></button></td>
-      </tr>`;
+      const rirBadge=set.rir==='Al Fallo'?'<span class="badge badge-red">FALLO</span>':'<span class="badge badge-amber">'+set.rir+'</span>';
+      const prKg = getLastWeightForReps(ex.name, parseInt(set.reps)||0);
+      const prLabel = prKg ? '<div style="position:absolute;right:-22px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--text-dim);line-height:1;text-align:center;white-space:nowrap">PR<br>'+prKg+'kg</div>' : '';
+      setsHTML+='<tr>'
+        +'<td style="color:var(--text-muted)">'+(si+1)+'</td>'
+        +'<td><span class="badge badge-lime">'+set.reps+'</span></td>'
+        +'<td>'+rirBadge+'</td>'
+        +'<td><input type="number" min="0" style="width:60px;padding:4px 6px;font-size:13px" placeholder="\u2014" onchange="updateSet('+ei+','+si+',\'realReps\',this.value)" /></td>'
+        +'<td style="position:relative">'
+          +'<input type="number" min="0" step="0.5" style="width:70px;padding:4px 6px;font-size:13px;color:var(--text)"'
+          +' placeholder="'+(prKg||'')+'"'
+          +' value="'+(set.weight||'')+'"'
+          +' onchange="updateSet('+ei+','+si+',\'weight\',this.value);checkLivePR(this,'+ei+','+si+',\''+ex.name+'\')" />'
+          +prLabel
+          +'<span id="pr-ind-'+ei+'-'+si+'" style="position:absolute;right:-22px;top:50%;transform:translateY(-50%);font-size:14px;display:none">\ud83c\udfc6</span>'
+        +'</td>'
+        +'<td><button class="set-check'+(set.done?' done':'')+'" id="sc-'+ei+'-'+si+'" onclick="toggleSet('+ei+','+si+')">'+(set.done?'\u2713':'')+'</button></td>'
+        +'</tr>';
     });
     setsHTML+='</tbody></table>';
+    const notasHtml = ex.notas ? '<div style="font-size:12px;color:var(--text-muted);background:var(--surface3);border-radius:6px;padding:8px 10px;margin-bottom:10px;border-left:3px solid var(--border-lime)">\ud83d\udcdd '+ex.notas+'</div>' : '';
     const card=document.createElement('div');
     card.className='session-exercise';
-    const notasHtml=ex.notas?`<div style="font-size:12px;color:var(--text-muted);background:var(--surface3);border-radius:6px;padding:8px 10px;margin-bottom:10px;border-left:3px solid var(--border-lime)">📝 ${ex.notas}</div>`:'';
-    card.innerHTML=`<h3><span class="badge badge-lime">${ei+1}</span>${ex.name}<span class="text-muted" style="font-size:12px;font-weight:400">· Descanso: ${ex.rest}s</span></h3>${notasHtml}${setsHTML}`;
+    card.innerHTML='<h3><span class="badge badge-lime">'+(ei+1)+'</span>'+ex.name+'<span class="text-muted" style="font-size:12px;font-weight:400"> \u00b7 Descanso: '+ex.rest+'s</span></h3>'+notasHtml+setsHTML;
     content.appendChild(card);
   });
 
-  // Comentarios de la sesión
   const commDiv=document.createElement('div');
   commDiv.style.marginTop='1.5rem';
-  commDiv.innerHTML=`
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem">
-      <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:6px">💬 Comentarios de la sesión</label>
-      <textarea id="session-comments" placeholder="¿Cómo te sentiste? ¿Algún dolor o limitación? ¿Qué mejorar la próxima vez?..." style="min-height:90px;font-size:13px;width:100%"></textarea>
-    </div>`;
+  commDiv.innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem"><label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:6px">\ud83d\udcac Comentarios de la sesi\u00f3n</label><textarea id="session-comments" placeholder="\u00bfC\u00f3mo te sentiste? \u00bfAlg\u00fan dolor o limitaci\u00f3n?..." style="min-height:90px;font-size:13px;width:100%">'+(activeSession.savedComments||'')+'</textarea></div>';
   content.appendChild(commDiv);
 
   const finBtn=document.createElement('button');
   finBtn.className='btn btn-primary w-full';
-  finBtn.textContent='🏁 Finalizar sesión';
+  finBtn.textContent='\ud83c\udfc1 Finalizar sesi\u00f3n';
   finBtn.style.marginTop='1rem';
   finBtn.onclick=showSessionComplete;
   content.appendChild(finBtn);
 
-  const cancelBtnR=document.createElement('button');
-  cancelBtnR.className='btn btn-danger w-full';
-  cancelBtnR.textContent='✕ Cancelar entrenamiento';
-  cancelBtnR.style.cssText='margin-top:8px;background:var(--red-bg);color:var(--red);border:1px solid rgba(226,75,74,0.3)';
-  cancelBtnR.onclick=confirmCancelSession;
-  content.appendChild(cancelBtnR);
+  const cancelBtn=document.createElement('button');
+  cancelBtn.className='btn btn-danger w-full';
+  cancelBtn.textContent='\u2715 Cancelar entrenamiento';
+  cancelBtn.style.cssText='margin-top:8px;background:var(--red-bg);color:var(--red);border:1px solid rgba(226,75,74,0.3)';
+  cancelBtn.onclick=confirmCancelSession;
+  content.appendChild(cancelBtn);
 }
-
 function updateSet(ei,si,field,val){if(activeSession)activeSession.sets[ei][si][field]=val;}
 function checkLivePR(input,ei,si,exName){
   const kg=parseFloat(input.value)||0;
@@ -2322,7 +2551,7 @@ function toggleSet(ei,si){
     // Próximo ejercicio — leer la rutina desde datos del usuario (r no está en este scope)
     const _d = getUserData(currentUser.uid);
     const _r = _d.routines.find(x => x.id === activeSession.routineId);
-    const allEx = _r?.days?.[activeSession.dayIdx]?.exercises || [];
+    const allEx = _r ? getDayExercisesArray(_r.days[activeSession.dayIdx]) : [];
     const nextEx = allEx[ei+1];
     const nextName = nextEx ? nextEx.name : 'Fin del entrenamiento';
     startRestTimer(restSecs, nextName);
@@ -2371,10 +2600,14 @@ function finishSession(){
   const sessionComments=activeSession.savedComments||'';
   // Guardar nombres de ejercicios para que el panel coach los muestre
   // aunque la rutina sea editada o eliminada más tarde
-  const _sessionExNames = {};
-  const _sessionRoutine = d.routines.find(x => x.id === activeSession.routineId);
-  const _sessionExercises = _sessionRoutine?.days?.[activeSession.dayIdx]?.exercises || [];
-  _sessionExercises.forEach((ex, i) => { if(ex.name) _sessionExNames[i] = ex.name; });
+  const _sessionExNames = activeSession.exerciseNames || {};
+  if(!Object.keys(_sessionExNames).length) {
+    const _sessionRoutine = d.routines.find(x => x.id === activeSession.routineId);
+    const _sessionExercises = _sessionRoutine
+      ? getDayExercisesArray(_sessionRoutine.days[activeSession.dayIdx])
+      : [];
+    _sessionExercises.forEach((ex, i) => { if(ex.name) _sessionExNames[i] = ex.name; });
+  }
 
   d.history.push({id:'h_'+Date.now(),ts:Date.now(),routineId:activeSession.routineId,routineName:activeSession.routineName,dayIdx:activeSession.dayIdx,dayMuscle:activeSession.dayMuscle,duration:workoutSeconds,sets:activeSession.sets,metrics:m,prs:newPRs,comments:sessionComments,exerciseNames:_sessionExNames});
   setUserData(currentUser.uid,d);
@@ -2550,7 +2783,7 @@ function updateLoadsExerciseList(){
   const d=getUserData(currentUser.uid);
   const sel=document.getElementById('load-exercise-select');
   const allEx=new Set();
-  d.routines.forEach(r=>r.days.forEach(day=>day.exercises.forEach(ex=>{if(ex.name)allEx.add(ex.name);})));
+  d.routines.forEach(r=>r.days.forEach(day=>getDayExercisesArray(day).forEach(ex=>{if(ex.name)allEx.add(ex.name);})));
   Object.keys(d.loads||{}).forEach(k=>allEx.add(k));
   const cur=sel.value;
   sel.innerHTML='<option value="">-- Elegir ejercicio --</option>'+[...allEx].sort().map(e=>`<option ${e===cur?'selected':''} value="${e}">${e}</option>`).join('');
@@ -2620,6 +2853,90 @@ function deleteLoadRow(ex,date){if(!confirm('¿Eliminar esta fila?'))return;cons
 // ═══════════════════════════════════
 //  DETECCIÓN DE PR (RÉCORDS PERSONALES)
 // ═══════════════════════════════════
+// Devuelve el peso más reciente registrado en Cargas para un ejercicio y rep específicos
+// ── SECCIONES DE ENTRENAMIENTO ──────────────────────────────
+// Normaliza un día: si viene del formato viejo (exercises[])
+// lo convierte a { sections: {warmup, main, cooldown} }
+function normalizeDaySections(day) {
+  if(!day) return {muscle:'', sections: _emptySections()};
+  // Ya tiene el formato nuevo — asegurar que cada sección tenga exercises[]
+  if(day.sections) {
+    for(const key of ['warmup','main','cooldown']) {
+      if(day.sections[key] && !Array.isArray(day.sections[key].exercises)) {
+        day.sections[key].exercises = [];
+      }
+    }
+    return day;
+  }
+  // Formato viejo: migrar todos los ejercicios a la parte principal
+  return {
+    muscle: day.muscle || '',
+    sections: {
+      warmup:   { active: false, exercises: [] },
+      main:     { active: true,  exercises: day.exercises || [] },
+      cooldown: { active: false, exercises: [] },
+    }
+  };
+}
+
+function _emptySections() {
+  return {
+    warmup:   { active: false, exercises: [] },
+    main:     { active: true,  exercises: [] },
+    cooldown: { active: false, exercises: [] },
+  };
+}
+
+// Devuelve todos los ejercicios del día en orden (warmup→main→cooldown)
+// con metadato de sección para renderizar separadores
+function getDayExercisesFlat(day) {
+  const d = normalizeDaySections(day);
+  const LABELS = {
+    warmup:   'Entrada en calor',
+    main:     'Parte principal',
+    cooldown: 'Vuelta a la calma',
+  };
+  const result = [];
+  for(const key of ['warmup','main','cooldown']) {
+    const sec = d.sections[key];
+    if(!sec.active) continue;
+    if(sec.exercises.length > 0) {
+      result.push({ _sectionSep: true, _sectionKey: key, _sectionLabel: LABELS[key] });
+    }
+    sec.exercises.forEach(ex => result.push({ ...ex, _section: key }));
+  }
+  return result;
+}
+
+// Para funciones que necesitan un array plano sin metadatos (historial, etc.)
+function getDayExercisesArray(day) {
+  if(!day) return [];
+  return getDayExercisesFlat(day).filter(x => !x._sectionSep);
+}
+
+function getLastWeightForReps(exName, reps) {
+  if(!currentUser) return 0;
+  const d  = getUserData(currentUser.uid);
+  const ex = d.loads?.[exName];
+  if(!ex) return 0;
+  // Columnas de reps: buscar la más cercana disponible (exact match primero)
+  const repKey = String(reps);
+  const dates  = Object.keys(ex).sort().reverse(); // más reciente primero
+  for(const date of dates) {
+    const val = ex[date]?.[repKey];
+    if(val && parseFloat(val) > 0) return parseFloat(val);
+  }
+  // Si no hay match exacto, buscar rep más cercana (±2 reps)
+  const repNum = parseInt(reps);
+  for(const date of dates) {
+    for(const r of [repNum-1, repNum+1, repNum-2, repNum+2]) {
+      const val = ex[date]?.[String(r)];
+      if(val && parseFloat(val) > 0) return parseFloat(val);
+    }
+  }
+  return 0;
+}
+
 function getPRs() {
   const uid = currentUser ? currentUser.uid : 'guest';
   const d = getUserData(uid);
@@ -3085,15 +3402,17 @@ function selectLibExercise(name, execNotes) {
   }
 
   // Contexto C: agregar bloque al editor de rutinas del usuario
-  const container = document.getElementById('exercises-container');
+  const _sec = window._editorLibSection || 'main';
+  const container = document.getElementById('exercises-container-' + _sec)
+                 || document.getElementById('exercises-container');
   if(!container) { closeLibPicker(); return; }
   const ei = container.querySelectorAll('.ex-block').length;
   container.insertAdjacentHTML('beforeend', exerciseBlockHTML({
     name: name, notas: execNotes || '', rest: '90',
     seriesBlocks: [{ series:'3', reps:'10', rir:'RIR 2', pct:'' }]
-  }, ei));
+  }, ei, _sec));
   container.querySelectorAll('.ex-block').forEach((b, i) => {
-    b.id = 'exblock-' + i;
+    b.id = 'exblock-' + _sec + '-' + i;
     const badge = b.querySelector('.badge-lime');
     if(badge) badge.textContent = i + 1;
   });
@@ -5997,8 +6316,8 @@ function showToast(msg) {
 }
 
 // Botón en el editor de rutinas para abrir biblioteca
-function openLibraryFromEditor() {
-  // Modo "agregar bloque nuevo" - el picker se abre encima del modal del editor
+function openLibraryFromEditor(section='main') {
+  window._editorLibSection = section; // sección destino para selectLibExercise
   _libPickerTargetInput = null;
   _libPickerActiveGroup = 'Todos';
   const searchEl = document.getElementById('lib-picker-search');
@@ -6019,10 +6338,11 @@ function exportRoutinesExcel(){
   d.routines.forEach(r=>{
     tableHTML+=`<table><tr><th colspan="6" style="font-size:14px">${r.name} — ${r.protocol}</th></tr>`;
     r.days.forEach((day,di)=>{
-      if(!day.exercises||!day.exercises.length) return;
+      const _dayExFlat = getDayExercisesArray(day);
+      if(!_dayExFlat.length) return;
       tableHTML+=`<tr><td colspan="6" style="background:#1a1a1a;font-weight:bold;color:#C8E63A">Día ${di+1}: ${day.muscle||'Sin especificar'}</td></tr>`;
       tableHTML+=`<tr><th>#</th><th>Ejercicio</th><th>Bloque Series</th><th>Repeticiones</th><th>RIR / Fallo</th><th>% 1RM</th></tr>`;
-      day.exercises.forEach((ex,ei)=>{
+      _dayExFlat.forEach((ex,ei)=>{
         (ex.seriesBlocks||[]).forEach((sb,si)=>{
           tableHTML+=`<tr>
             <td>${si===0?ei+1:''}</td>
@@ -7799,13 +8119,17 @@ function useTemplate(templateId) {
     protocol: tpl.protocol,
     createdAt: Date.now(),
     days: tpl.days.map(day => ({
-      muscle: day.muscle,
-      exercises: day.exercises.map(ex => ({
-        name: ex.name,
-        rest: ex.rest || '90',
-        notas: ex.notas || '',
-        seriesBlocks: ex.seriesBlocks || [{ series: '3', reps: '10', rir: 'RIR 2', pct: '' }]
-      }))
+      muscle: day.muscle || '',
+      sections: {
+        warmup:   { active: false, exercises: [] },
+        main:     { active: true,  exercises: getDayExercisesArray(day).map(ex => ({
+          name: ex.name,
+          rest: ex.rest || '90',
+          notas: ex.notas || '',
+          seriesBlocks: ex.seriesBlocks || [{ series: '3', reps: '10', rir: 'RIR 2', pct: '' }]
+        })) },
+        cooldown: { active: false, exercises: [] },
+      }
     }))
   };
 
