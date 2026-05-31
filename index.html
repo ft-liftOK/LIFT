@@ -2262,6 +2262,8 @@ function collectAllDays(){
 // ── LÍMITES DEL PLAN FREE ────────────────────────────────────
 // Retorna el plan del usuario actual: 'free' | 'standard' | 'pro' | 'premium'
 function getPlan() {
+  // Cuenta del coach — acceso completo siempre
+  if(currentUser?.email === 'pf.francotoledo@gmail.com') return 'premium';
   const d = window._userData || getUserData(currentUser?.uid);
   return (d?.plan || 'free').toLowerCase();
 }
@@ -7041,7 +7043,7 @@ function _renderPlanCards() {
         { ok: true,  text: 'Hasta 2 rutinas guardadas' },
         { ok: true,  text: '6 ejercicios por grupo muscular' },
         { ok: true,  text: 'Historial últimas 3 sesiones' },
-        { ok: true,  text: '1 plantilla por bloque' },
+        { ok: true,  text: '3 plantillas por bloque' },
         { ok: false, text: 'Rutinas y biblioteca ilimitadas' },
         { ok: false, text: 'Historial completo' },
         { ok: false, text: 'Acceso a coach' },
@@ -7064,7 +7066,7 @@ function _renderPlanCards() {
         { ok: true,  text: 'Rutinas ilimitadas' },
         { ok: true,  text: 'Biblioteca completa (168 ejercicios)' },
         { ok: true,  text: 'Historial completo' },
-        { ok: true,  text: '3 plantillas por bloque' },
+        { ok: true,  text: 'Todas las plantillas' },
         { ok: false, text: 'Acceso a coach' },
         { ok: false, text: 'Videollamada con el coach' },
         { ok: false, text: 'Chat de soporte' },
