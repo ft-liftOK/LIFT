@@ -445,6 +445,19 @@ textarea { resize: vertical; min-height: 80px; }
               .then(() => cred.user);
           }),
 
+      isCodeUsed: async (code) => {
+        try {
+          const snap = await getDoc(doc(db, 'usedCodes', code));
+          return snap.exists();
+        } catch(e) { return false; }
+      },
+      markCodeUsed: async (code, uid) => {
+        try { await setDoc(doc(db, 'usedCodes', code), { uid, usedAt: new Date().toISOString() }); } catch(e){}
+      },
+      createValidCode: async (code, prefix) => {
+        const PM = { BSC:'basic', STD:'standard', PRO:'pro', PRM:'premium' };
+        try { await setDoc(doc(db, 'validCodes', code), { plan: PM[prefix]||'basic', createdAt: new Date().toISOString() }); } catch(e){}
+      },
       login: (email, pass) =>
         signInWithEmailAndPassword(fbAuth, email, pass)
           .then(cred => cred.user),
@@ -733,7 +746,7 @@ textarea { resize: vertical; min-height: 80px; }
     <div id="page-workout" class="page">
       <div class="section-header">
         <h2 class="section-title">Sesión de Entrenamiento</h2>
-        <div id="workout-timer" style="font-family:'DM Mono',monospace;font-size:1.2rem;color:var(--lime)">00:00</div>
+        <div id="workout-timer" style="font-family:monospace;font-size:1.2rem;color:var(--lime)">00:00</div>
       </div>
       <div id="workout-warnings"></div>
       <div id="workout-routine-selector"></div>
@@ -1204,16 +1217,29 @@ textarea { resize: vertical; min-height: 80px; }
           <div id="current-plan-display" style="margin-bottom:1rem"></div>
           <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:10px">
             <div>
-              <div class="settings-label">Código de activación</div>
-              <div class="settings-sub">Ingresá el código que te envió Franco para activar tu plan</div>
+              <div class="settings-label">Activar plan</div>
+              <div class="settings-sub">Completá tus datos y el código que te envió Franco</div>
             </div>
-            <div style="display:flex;gap:8px;width:100%">
-              <input type="text" id="plan-code-input" placeholder="Ej: PRO-2024-XXXX"
-                style="flex:1;text-transform:uppercase;letter-spacing:0.05em"
-                oninput="this.value=this.value.toUpperCase()" />
-              <button class="btn btn-primary btn-sm" onclick="activatePlanCode()" style="width:auto;padding:0 16px;flex-shrink:0">
-                Activar
-              </button>
+            <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+              <div style="display:flex;gap:8px">
+                <input type="text" id="plan-code-name" placeholder="Tu nombre completo"
+                  style="flex:1;font-size:13px;color:var(--text);background:var(--surface2);
+                    border:1px solid var(--border);border-radius:8px;padding:10px 12px" />
+              </div>
+              <div style="display:flex;gap:8px">
+                <input type="tel" id="plan-code-phone" placeholder="Tu WhatsApp (ej: 2614000000)"
+                  style="flex:1;font-size:13px;color:var(--text);background:var(--surface2);
+                    border:1px solid var(--border);border-radius:8px;padding:10px 12px" />
+              </div>
+              <div style="display:flex;gap:8px">
+                <input type="text" id="plan-code-input" placeholder="Código (ej: BSC-XXXXXXXX)"
+                  style="flex:1;text-transform:uppercase;letter-spacing:0.05em;font-size:13px"
+                  oninput="this.value=this.value.toUpperCase()" />
+                <button class="btn btn-primary btn-sm" onclick="activatePlanCode()"
+                  style="width:auto;padding:0 16px;flex-shrink:0;white-space:nowrap">
+                  Activar
+                </button>
+              </div>
             </div>
             <div id="plan-code-msg" style="font-size:12px;display:none"></div>
           </div>
@@ -1862,6 +1888,14 @@ function renderRoutines(){
 }
 
 function openRoutineEditor(id=null){
+  // Plan free: máximo 2 rutinas (solo bloquear al crear, no al editar)
+  if(!id && isFree()) {
+    const _d = window._userData || getUserData(currentUser.uid);
+    if((_d.routines||[]).length >= 2) {
+      showUpgradeModal('Rutinas ilimitadas');
+      return;
+    }
+  }
   editingRoutineId=id; currentDayIdx=0; currentDayCache={};
   const d=getUserData(currentUser.uid);
   const r=id?d.routines.find(x=>x.id===id):null;
@@ -2225,10 +2259,92 @@ function collectAllDays(){
   return days;
 }
 
+// ── LÍMITES DEL PLAN FREE ────────────────────────────────────
+// Retorna el plan del usuario actual: 'free' | 'standard' | 'pro' | 'premium'
+function getPlan() {
+  const d = window._userData || getUserData(currentUser?.uid);
+  return (d?.plan || 'free').toLowerCase();
+}
+
+function isFree()    { return getPlan() === 'free'; }
+function isBasic()   { const p=getPlan(); return p==='basic'||p==='standard'||p==='pro'||p==='premium'; }
+function isPaid()    { return !isFree(); } // cualquier plan de pago
+function hasCoach()  { const p=getPlan(); return p==='standard'||p==='pro'||p==='premium'; }
+
+// Modal de upgrade — se muestra cuando el usuario toca algo bloqueado
+function showUpgradeModal(featureName) { featureName = featureName || 'esta función';
+  const existing = document.getElementById('modal-upgrade');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-upgrade';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:18px;width:100%;max-width:420px;
+      border:1px solid var(--border);overflow:hidden;text-align:center">
+      <div style="background:linear-gradient(135deg,rgba(200,230,58,0.15),rgba(200,230,58,0.05));
+        padding:2rem 1.5rem 1.5rem">
+        <div style="font-size:2.5rem;margin-bottom:0.5rem">🔒</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--lime);letter-spacing:0.05em">
+          FUNCIÓN PREMIUM
+        </div>
+        <div style="font-size:14px;color:var(--text-muted);margin-top:6px">
+          ${featureName} está disponible en el plan <strong style="color:var(--text)">Estándar</strong> o superior.
+        </div>
+      </div>
+      <div style="padding:1.2rem 1.5rem">
+        <div style="background:var(--surface2);border-radius:12px;padding:1rem;margin-bottom:1rem;
+          border:1px solid var(--border-lime)">
+          <div style="font-size:11px;color:var(--lime);font-weight:700;text-transform:uppercase;
+            letter-spacing:0.06em;margin-bottom:4px">Plan Básico</div>
+          <div style="font-size:1.4rem;font-weight:800;color:var(--text)">$3.999 <span style="font-size:11px;color:var(--text-muted)">/ USD 2,5</span><span style="font-size:13px;font-weight:400;color:var(--text-muted)">/mes</span></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5">
+            ✅ Rutinas ilimitadas<br>
+            ✅ Biblioteca completa (168 ejercicios)<br>
+            ✅ Historial completo<br>
+            ✅ Todas las plantillas
+          </div>
+        </div>
+        <a href="https://mpago.la/1VdQ8vR" target="_blank"
+          style="display:block;background:var(--lime);color:#000;border-radius:10px;padding:13px;
+            font-weight:700;font-size:14px;text-decoration:none;margin-bottom:8px">
+          ⚡ Suscribirme — $3.999/mes
+        </a>
+        <button onclick="document.getElementById('modal-upgrade').remove()"
+          style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text-muted);
+            border-radius:10px;padding:10px;font-size:13px;cursor:pointer">
+          Más tarde
+        </button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+// Banner de límite — pequeño, no intrusivo
+function showLimitBanner(msg) {
+  const el = document.createElement('div');
+  el.style.cssText = 'background:rgba(200,230,58,0.08);border:1px solid var(--border-lime);'
+    + 'border-radius:10px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;'
+    + 'justify-content:space-between;gap:10px;font-size:12px';
+  el.innerHTML = '<span style="color:var(--text)">' + msg + '</span>'
+    + '<button onclick="showUpgradeModal()" '
+    + 'style="background:var(--lime);color:#000;border:none;border-radius:6px;'
+    + 'padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Ver planes</button>';
+  return el;
+}
+
 function saveRoutine(){
   try {
     const name=document.getElementById('r-name').value.trim();
     if(!name){alert('Poné un nombre al entrenamiento.');return;}
+    // Límite plan free: máximo 2 rutinas
+    if(isFree() && !editingRoutineId) {
+      const d = window._userData || getUserData(currentUser.uid);
+      if((d.routines||[]).length >= 2) {
+        showUpgradeModal('Rutinas ilimitadas');
+        return;
+      }
+    }
     const days=collectAllDays();
     if(!days || !days.length){alert('❌ Error al leer los días del entrenamiento. Intentá de nuevo.');return;}
     const d=getUserData(currentUser.uid);
@@ -2985,10 +3101,17 @@ function detectPRs(sessionSets, exercises) {
 //  HISTORY
 // ═══════════════════════════════════
 function renderHistory(){
-  const d=getUserData(currentUser.uid);
+  const d = window._userData || getUserData(currentUser.uid);
   const el=document.getElementById('history-list');
-  if(!d.history.length){el.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Sin sesiones registradas todavía.</p></div>';return;}
-  el.innerHTML=[...d.history].reverse().map(h=>{
+  if(!d.history||!d.history.length){el.innerHTML='<div class="empty-state"><div class="icon">📅</div><p>Sin sesiones registradas todavía.</p></div>';return;}
+
+  // Plan free: solo las últimas 3 sesiones
+  const FREE_HIST_LIMIT = 3;
+  const allHist = [...d.history].reverse();
+  const histToShow = isFree() ? allHist.slice(0, FREE_HIST_LIMIT) : allHist;
+  const hiddenCount = isFree() ? Math.max(0, allHist.length - FREE_HIST_LIMIT) : 0;
+
+  el.innerHTML = histToShow.map(h=>{
     const date=new Date(h.ts).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
     const mins=Math.floor(h.duration/60);
     const m=h.metrics||{};
@@ -3012,6 +3135,17 @@ function renderHistory(){
       ${h.comments?`<div style="margin-top:10px;font-size:12px;color:var(--text-muted);background:var(--surface3);border-radius:6px;padding:8px 10px;border-left:3px solid var(--border-lime)">💬 <em>${h.comments}</em></div>`:''}
     </div>`;
   }).join('');
+
+  // Plan free: tile de sesiones bloqueadas
+  if(hiddenCount > 0) {
+    el.innerHTML += '<div onclick="showUpgradeModal()" '
+      + 'style="background:var(--surface2);border:2px dashed var(--border-lime);border-radius:12px;'
+      + 'padding:1.5rem;text-align:center;cursor:pointer;margin-top:10px">'
+      + '<div style="font-size:1.5rem;margin-bottom:6px">🔒</div>'
+      + '<div style="font-size:13px;font-weight:700;color:var(--lime)">+'+hiddenCount+' sesiones anteriores</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);margin-top:4px">Desbloqueá con el Plan Básico</div>'
+      + '</div>';
+  }
 }
 function deleteHistory(id){if(!confirm('¿Eliminar?'))return;const d=getUserData(currentUser.uid);d.history=d.history.filter(h=>h.id!==id);setUserData(currentUser.uid,d);renderHistory();}
 
@@ -6157,7 +6291,19 @@ let _libTargetInput = null;
 function renderLibrary() {
   const groups = ['Todos', ...new Set(EXERCISE_DB.map(e => e.group))];
   const total = EXERCISE_DB.length;
-  document.getElementById('lib-count-badge').textContent = total + ' ejercicios';
+  // Calcular visibles en free: 6 por grupo
+  let visibleCount = total;
+  if(isFree()) {
+    const FREE_PER_GROUP = 6;
+    const gc = {};
+    visibleCount = 0;
+    EXERCISE_DB.forEach(ex => {
+      const g = ex.group||'Otros';
+      if(!gc[g]) gc[g] = 0;
+      if(gc[g] < FREE_PER_GROUP) { visibleCount++; gc[g]++; }
+    });
+  }
+  document.getElementById('lib-count-badge').textContent = visibleCount + ' ejercicios' + (isFree() ? ' · Plan gratuito' : '');
 
   const tabs = document.getElementById('lib-tabs');
   tabs.innerHTML = groups.map(g =>
@@ -6165,6 +6311,22 @@ function renderLibrary() {
   ).join('');
 
   document.getElementById('lib-search-input').value = '';
+
+  // Plan free: mostrar banner de límite
+  if(isFree()) {
+    const existingBanner = document.getElementById('lib-free-banner');
+    if(!existingBanner) {
+      const banner = showLimitBanner('Plan gratuito: acceso a 20 ejercicios. Desbloqueá los 168 completos con el Plan Estándar.');
+      banner.id = 'lib-free-banner';
+      banner.style.marginBottom = '12px';
+      const grid = document.getElementById('lib-grid');
+      if(grid && grid.parentNode) grid.parentNode.insertBefore(banner, grid);
+    }
+  } else {
+    const existingBanner = document.getElementById('lib-free-banner');
+    if(existingBanner) existingBanner.remove();
+  }
+
   renderLibGrid(EXERCISE_DB);
 }
 
@@ -6174,10 +6336,33 @@ function renderLibGrid(exercises) {
     grid.innerHTML='<div class="empty-state" style="padding:2rem"><div class="icon">🔍</div><p>No se encontraron ejercicios.</p></div>';
     return;
   }
+  // Plan free: limitar a 6 ejercicios por grupo muscular
+  let displayExercises = exercises;
+  let freeLimitReached = false;
+  let hiddenLibCount = 0;
+  if(isFree()) {
+    const FREE_PER_GROUP = 6;
+    const grouped_count = {};
+    const filtered = [];
+    exercises.forEach(ex => {
+      const g = ex.group || 'Otros';
+      if(!grouped_count[g]) grouped_count[g] = 0;
+      if(grouped_count[g] < FREE_PER_GROUP) {
+        filtered.push(ex);
+        grouped_count[g]++;
+      } else {
+        hiddenLibCount++;
+      }
+    });
+    if(hiddenLibCount > 0) {
+      displayExercises = filtered;
+      freeLimitReached = true;
+    }
+  }
 
   // Agrupar por grupo muscular
   const grouped = {};
-  exercises.forEach(ex => {
+  displayExercises.forEach(ex => {
     if(!grouped[ex.group]) grouped[ex.group] = [];
     grouped[ex.group].push(ex);
   });
@@ -6428,7 +6613,7 @@ function updateSessionBanner(page) {
       <span style="font-size:20px">⚡</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;color:var(--lime);font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Sesión en curso</div>
-        <div id="banner-timer" style="font-family:'DM Mono',monospace;font-size:14px;color:var(--text)">00:00</div>
+        <div id="banner-timer" style="font-family:monospace;font-size:14px;color:var(--text)">00:00</div>
       </div>
       <button onclick="event.stopPropagation();confirmCancelSession()"
         style="background:var(--red-bg);color:var(--red);border:1px solid rgba(226,75,74,0.3);
@@ -6628,6 +6813,12 @@ function showTemplateCategory(category) {
   const detail = document.getElementById('tpl-detail');
   if(home) home.style.display = 'none';
   if(detail) detail.style.display = 'block';
+  window._currentTplCategory = category;
+
+  const d_tpl = window._userData || getUserData(currentUser?.uid || 'guest');
+  const usedFromCat = isFree()
+    ? (d_tpl.routines||[]).filter(r => r.fromTemplate && r.templateCategory === category).length
+    : 0;
 
   const catColors = {
     'Adaptación': '#4CAF50',
@@ -6654,7 +6845,10 @@ function showTemplateCategory(category) {
   const titleEl = document.getElementById('tpl-detail-title');
   const subEl = document.getElementById('tpl-detail-sub');
   if(titleEl) titleEl.textContent = icon + ' ' + category;
-  if(subEl) subEl.textContent = catDesc[category] || '';
+  if(subEl) {
+    const freeNote = isFree() ? ' · Plan gratuito: 3 de 10 disponibles' : '';
+    subEl.textContent = (catDesc[category] || '') + freeNote;
+  }
 
   const _lvlOrd = {Sedentarios:1,Principiante:2,Retorno:3,Intermedio:4,Avanzado:5};
   const filtered = PRESET_ROUTINES
@@ -6675,9 +6869,11 @@ function showTemplateCategory(category) {
 
   const levelColor = (level) => level === 'Avanzado' ? '#FF5722' : level === 'Intermedio' ? '#FF9800' : level === 'Retorno' ? '#9C27B0' : level === 'Sedentarios' ? '#607D8B' : '#4CAF50';
 
-  list.innerHTML = filtered.map(t => {
+  list.innerHTML = filtered.map((t, tIdx) => {
     const lc = levelColor(t.level);
-    return `<div class="card" style="margin-bottom:14px;border-left:4px solid ${color}">
+    // Plan free: primeras 3 disponibles, el resto bloqueadas
+    const isLocked = isFree() && tIdx >= 3;
+    return `<div class="card" style="margin-bottom:14px;border-left:4px solid ${isLocked ? '#444' : color};${isLocked ? 'opacity:0.7' : ''}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <span style="font-size:22px">${icon}</span>
         <span class="badge" style="background:${lc}22;color:${lc};font-size:11px;padding:3px 10px">${t.level}</span>
@@ -6708,7 +6904,13 @@ function showTemplateCategory(category) {
           ${t.days.map((d,i) => `<span class="tag" style="background:${color}15;color:${color};border:1px solid ${color}33;font-size:11px">Día ${i+1}: ${d.muscle}</span>`).join('')}
         </div>
       </div>
-      <button class="btn btn-primary w-full" data-tpl-id="${t.id}" onclick="useTemplate(this.dataset.tplId)">➕ Usar esta plantilla</button>
+      ${isLocked
+        ? `<button class="btn w-full" onclick="showUpgradeModal()"
+            style="background:var(--surface3);color:var(--text-muted);border:1px dashed var(--border);cursor:pointer">
+            🔒 Bloqueada — Plan Básico
+          </button>`
+        : `<button class="btn btn-primary w-full" data-tpl-id="${t.id}" onclick="useTemplate(this.dataset.tplId)">➕ Usar esta plantilla</button>`
+      }
     </div>`;
   }).join('');
 }
@@ -6732,8 +6934,11 @@ function filterTemplates(category, btn) {
 
 function renderCoachingPage() {
   const uid  = currentUser ? currentUser.uid : 'guest';
-  const d    = getUserData(uid);
-  const plan = d.plan || 'free';
+  const d    = window._userData || getUserData(uid);
+  const plan = (d.plan || 'free').toLowerCase();
+
+  // Plan free: mostrar igual que los demás (planes + datos) pero sin acceso al coach
+  // NO bloquear la sección completa — el usuario necesita ver los planes para suscribirse
 
   // Badge del plan activo
   const planCfg = {
@@ -6833,19 +7038,41 @@ function _renderPlanCards() {
       border: 'var(--border)',
       icon: '⚪',
       features: [
-        { ok: true,  text: 'Creá tus propios entrenamientos' },
-        { ok: true,  text: 'Registro de cargas' },
-        { ok: true,  text: 'Historial de entrenamientos' },
-        { ok: true,  text: 'Biblioteca de ejercicios' },
-        { ok: true,  text: 'Plantillas de entrenamiento' },
-        { ok: false, text: 'Videollamada con el coach' },
-        { ok: false, text: 'Corrección técnica por video' },
-        { ok: false, text: 'Chat de soporte' },
+        { ok: true,  text: 'Hasta 2 rutinas guardadas' },
+        { ok: true,  text: '6 ejercicios por grupo muscular' },
+        { ok: true,  text: 'Historial últimas 3 sesiones' },
+        { ok: true,  text: '1 plantilla por bloque' },
+        { ok: false, text: 'Rutinas y biblioteca ilimitadas' },
+        { ok: false, text: 'Historial completo' },
+        { ok: false, text: 'Acceso a coach' },
         { ok: false, text: 'Anamnesis deportiva' },
       ],
       mp_link: null,
       cta: 'Plan actual',
       cta_disabled: true,
+    },
+    {
+      id: 'basic',
+      name: 'Básico',
+      price_ars: '$3.999',
+      price_usd: 'USD 2,5',
+      color: '#C8E63A',
+      bg: 'rgba(200,230,58,0.06)',
+      border: '#C8E63A',
+      icon: '🟡',
+      features: [
+        { ok: true,  text: 'Rutinas ilimitadas' },
+        { ok: true,  text: 'Biblioteca completa (168 ejercicios)' },
+        { ok: true,  text: 'Historial completo' },
+        { ok: true,  text: '3 plantillas por bloque' },
+        { ok: false, text: 'Acceso a coach' },
+        { ok: false, text: 'Videollamada con el coach' },
+        { ok: false, text: 'Chat de soporte' },
+        { ok: false, text: 'Anamnesis deportiva' },
+      ],
+      mp_link: 'https://mpago.la/1VdQ8vR',
+      cta: 'Suscribirme',
+      cta_disabled: false,
     },
     {
       id: 'standard',
@@ -6857,12 +7084,12 @@ function _renderPlanCards() {
       border: '#4A90D9',
       icon: '🔵',
       features: [
-        { ok: true,  text: 'Todo lo gratuito' },
-        { ok: true,  text: 'Entrenamiento personalizado' },
+        { ok: true,  text: 'Todo lo del plan Básico' },
+        { ok: true,  text: 'Acceso a coach asignado' },
         { ok: true,  text: '1 videollamada / mes' },
-        { ok: false, text: 'Corrección técnica por video' },
         { ok: true,  text: 'Chat de soporte estándar' },
         { ok: true,  text: 'Anamnesis deportiva' },
+        { ok: false, text: 'Corrección técnica por video' },
       ],
       mp_link: 'https://mpago.la/2jEK7k8',
       cta: 'Suscribirme',
@@ -7003,62 +7230,139 @@ function _coachLocked(msg) {
 // Formato: STD-XXXX / PRO-XXXX / PRM-XXXX
 // Franco entrega un código único por cliente (puede generar los suyos con el prefijo)
 const PLAN_CODES = {
+  // Básico — prefijo BSC
+  'BSC-2024': 'basic', 'BSC-2025': 'basic', 'BSC-2026': 'basic',
+  'BSC-2027': 'basic', 'BSC-2028': 'basic', 'BSC-2029': 'basic',
+  'BSC-2030': 'basic', 'BSC-2031': 'basic', 'BSC-2032': 'basic',
+  'BSC-2033': 'basic', 'BSC-2034': 'basic', 'BSC-2035': 'basic',
   // Estándar — prefijo STD
-  'STD-2024': 'standard',
-  'STD-2025': 'standard',
-  'STD-2026': 'standard',
+  'STD-2024': 'standard', 'STD-2025': 'standard', 'STD-2026': 'standard',
+  'STD-2027': 'standard', 'STD-2028': 'standard', 'STD-2029': 'standard',
   // Coaching Pro — prefijo PRO
-  'PRO-2024': 'pro',
-  'PRO-2025': 'pro',
-  'PRO-2026': 'pro',
+  'PRO-2024': 'pro', 'PRO-2025': 'pro', 'PRO-2026': 'pro',
+  'PRO-2027': 'pro', 'PRO-2028': 'pro', 'PRO-2029': 'pro',
   // Premium — prefijo PRM
-  'PRM-2024': 'premium',
-  'PRM-2025': 'premium',
-  'PRM-2026': 'premium',
+  'PRM-2024': 'premium', 'PRM-2025': 'premium', 'PRM-2026': 'premium',
+  'PRM-2027': 'premium', 'PRM-2028': 'premium', 'PRM-2029': 'premium',
 };
 
-function activatePlanCode() {
-  const input = document.getElementById('plan-code-input');
-  const msgEl = document.getElementById('plan-code-msg');
-  const code = (input.value || '').trim().toUpperCase();
+function generatePlanCode() {
+  const prefix = document.getElementById('code-plan-select')?.value || 'BSC';
+  // Generar código único: PREFIX-XXXXXXXX (8 chars aleatorios alfanuméricos)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin O,0,I,1 para evitar confusión
+  let random = '';
+  for(let i = 0; i < 8; i++) random += chars[Math.floor(Math.random() * chars.length)];
+  const code = prefix + '-' + random;
 
-  if(!code) {
-    _showPlanMsg('⚠️ Ingresá un código.', '#FF9800');
-    return;
-  }
-
-  // Buscar por código exacto o por prefijo (primeros 8 chars)
-  const prefix = code.substring(0, 8);
-  const plan = PLAN_CODES[code] || PLAN_CODES[prefix];
-
-  if(!plan) {
-    _showPlanMsg('❌ Código inválido. Verificá con Franco.', '#e74c3c');
-    return;
-  }
-
-  const uid = currentUser ? currentUser.uid : 'guest';
-  const d = getUserData(uid);
-  d.plan = plan;
-  d.planActivatedDate = new Date().toISOString();
-  d.planCode = code;
-  setUserData(uid, d);
-
-  const labels = { standard: 'Plan Estándar', pro: 'Coaching Pro', premium: 'Premium' };
-  _showPlanMsg('✅ ¡' + labels[plan] + ' activado correctamente! Ya podés completar tu anamnesis.', 'var(--lime)');
-  // Notificar al coach
-  const _cn = currentUser ? ((currentUser.name||'')+ ' ' +(currentUser.surname||'')).trim() : 'Cliente';
-  const _ce = currentUser ? (currentUser.email||'') : '';
-  const _nm = encodeURIComponent('🔔 *NUEVO PLAN ACTIVADO — Lift OK*\n──────────────\n👤 ' + _cn + '\n📧 ' + _ce + '\n💳 ' + labels[plan] + '\n📅 ' + new Date().toLocaleDateString('es-AR') + '\n──────────────\nEl cliente activó su plan. Podés contactarlo para comenzar.');
-  setTimeout(() => { if(confirm('✅ Plan activado. ¿Notificar al coach por WhatsApp?')) window.open('https://wa.me/5492616915783?text=' + _nm, '_blank'); }, 800);
-  input.value = '';
-  renderCurrentPlan();
-  // Si la anamnesis estaba bloqueada, actualizarla al estado correcto
-  const anamPage = document.getElementById('page-anamnesis');
-  if(anamPage && anamPage.classList.contains('active')) {
-    renderAnamnesis();
+  // Guardar en Firebase como código válido (no usado)
+  if(window._fb) {
+    // Los códigos válidos se crean en la colección 'validCodes'
+    window._fb.createValidCode(code, prefix).then(() => {
+      _addGeneratedCodeToUI(code);
+    }).catch(e => {
+      console.warn('createValidCode error:', e);
+      _addGeneratedCodeToUI(code); // Mostrar igual aunque Firebase falle
+    });
+  } else {
+    _addGeneratedCodeToUI(code);
   }
 }
 
+function _addGeneratedCodeToUI(code) {
+  const list = document.getElementById('generated-codes-list');
+  if(!list) return;
+  const item = document.createElement('div');
+  item.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--surface3);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:13px';
+  const cspan = document.createElement('span');
+  cspan.style.cssText = 'flex:1;color:var(--lime);letter-spacing:0.1em;font-weight:700';
+  cspan.textContent = code;
+  const cbtn = document.createElement('button');
+  cbtn.textContent = 'Copiar';
+  cbtn.style.cssText = 'background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer';
+  cbtn.onclick = (function(c){ return function(){ navigator.clipboard.writeText(c).then(function(){ showToast('Código copiado: '+c); }); }; })(code);
+  item.appendChild(cspan);
+  item.appendChild(cbtn);
+  list.insertBefore(item, list.firstChild);
+  while(list.children.length > 10) list.removeChild(list.lastChild);
+}
+
+function activatePlanCode() {
+  const input = document.getElementById('plan-code-input');
+  const code  = (input?.value || '').trim().toUpperCase();
+
+  const nameField  = document.getElementById('plan-code-name');
+  const phoneField = document.getElementById('plan-code-phone');
+  const clientName  = (nameField?.value  || '').trim();
+  const clientPhone = (phoneField?.value || '').trim();
+
+  if(!code) { _showPlanMsg('⚠️ Ingresá el código.', '#FF9800'); return; }
+  if(!clientName)  { _showPlanMsg('⚠️ Ingresá tu nombre completo.', '#FF9800'); nameField?.focus(); return; }
+  if(!clientPhone) { _showPlanMsg('⚠️ Ingresá tu número de WhatsApp.', '#FF9800'); phoneField?.focus(); return; }
+
+  const PREFIX_MAP = { 'BSC': 'basic', 'STD': 'standard', 'PRO': 'pro', 'PRM': 'premium' };
+  const prefix3 = code.substring(0, 3);
+  const plan = PREFIX_MAP[prefix3];
+
+  if(!plan) { _showPlanMsg('❌ Código inválido. Verificá con Franco.', '#e74c3c'); return; }
+
+  _showPlanMsg('⏳ Verificando código...', '#FF9800');
+
+  const uid = currentUser ? currentUser.uid : 'guest';
+  const LABELS = { free: 'Gratuito', basic: 'Básico', standard: 'Plan Estándar', pro: 'Coaching Pro', premium: 'Premium' };
+
+  const _applyCode = () => {
+    const d = window._userData || getUserData(uid);
+    d.plan = plan;
+    d.planActivatedDate = new Date().toISOString();
+    d.planCode = code;
+    if(clientPhone && !d.phone) d.phone = clientPhone;
+    if(clientName  && !d.name)  d.name  = clientName.split(' ')[0] || d.name;
+    window._userData = d;
+    setUserData(uid, d);
+    if(window._fb) {
+      window._fb.markCodeUsed(code, uid).catch(e => console.warn('markCodeUsed:', e));
+    }
+    _showPlanMsg('✅ ¡' + (LABELS[plan]||plan) + ' activado! Bienvenido/a.', 'var(--lime)');
+    if(input)      input.value = '';
+    if(nameField)  nameField.value  = '';
+    if(phoneField) phoneField.value = '';
+    renderCurrentPlan();
+    const anamPage = document.getElementById('page-anamnesis');
+    if(anamPage && anamPage.classList.contains('active')) renderAnamnesis();
+    // WhatsApp al coach con datos completos del cliente
+    const _ce = currentUser ? (currentUser.email||'') : '';
+    const _msg = [
+      '🔔 *NUEVO PLAN ACTIVADO - Lift OK*',
+      '──────────────',
+      '👤 Nombre: ' + clientName,
+      '📱 WhatsApp: ' + clientPhone,
+      '📧 Email: ' + _ce,
+      '💳 Plan: ' + (LABELS[plan]||plan),
+      '📅 Fecha: ' + new Date().toLocaleDateString('es-AR'),
+      '──────────────',
+      'Contactar al cliente para bienvenida.'
+    ].join('\n');
+    setTimeout(function() {
+      if(confirm('✅ Plan activado. ¿Notificar al coach por WhatsApp?')) {
+        window.open('https://wa.me/5492616915783?text=' + encodeURIComponent(_msg), '_blank');
+      }
+    }, 800);
+  };;
+
+  if(window._fb) {
+    window._fb.isCodeUsed(code).then(function(used) {
+      if(used) {
+        _showPlanMsg('❌ Este código ya fue utilizado o no existe.', '#e74c3c');
+      } else {
+        _applyCode();
+      }
+    }).catch(function() {
+      _applyCode(); // fallback si Firebase falla
+    });
+  } else {
+    _applyCode();
+  }
+}
 function _showPlanMsg(msg, color) {
   const el = document.getElementById('plan-code-msg');
   if(!el) return;
@@ -8108,9 +8412,18 @@ function useTemplate(templateId) {
   const tpl = PRESET_ROUTINES.find(t => t.id === templateId);
   if (!tpl) return;
 
-  // Si no hay sesión, usar uid 'guest' para igualmente guardar la rutina
   const uid = currentUser ? currentUser.uid : 'guest';
-  const d = getUserData(uid);
+  const d = window._userData || getUserData(uid);
+
+  // Plan free: máximo 1 plantilla por categoría
+  if(isFree()) {
+    const cat = tpl.category;
+    const usedFromCat = (d.routines||[]).filter(r => r.fromTemplate && r.templateCategory === cat).length;
+    if(usedFromCat >= 3) {
+      showUpgradeModal();
+      return;
+    }
+  }
 
   // Build routine from template
   const routine = {
@@ -8118,6 +8431,8 @@ function useTemplate(templateId) {
     name: tpl.name,
     protocol: tpl.protocol,
     createdAt: Date.now(),
+    fromTemplate: true,
+    templateCategory: tpl.category,
     days: tpl.days.map(day => ({
       muscle: day.muscle || '',
       sections: {
