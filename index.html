@@ -445,6 +445,10 @@ textarea { resize: vertical; min-height: 80px; }
               .then(() => cred.user);
           }),
 
+      updateDisplayName: async (displayName) => {
+        const { updateProfile } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+        await updateProfile(fbAuth.currentUser, { displayName });
+      },
       isCodeUsed: async (code) => {
         try {
           const snap = await getDoc(doc(db, 'usedCodes', code));
@@ -1124,6 +1128,29 @@ textarea { resize: vertical; min-height: 80px; }
 
       <div class="card">
         <div class="settings-section">
+          <h3>Idioma</h3>
+          <div class="settings-row" style="margin-bottom:10px">
+            <div>
+              <div class="settings-label">Idioma de la app</div>
+              <div class="settings-sub">Seleccioná el idioma de la interfaz</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:1rem">
+            <button id="lang-es" class="btn btn-ghost btn-sm"
+              onclick="setAppLanguage('es')"
+              style="flex:1;border:2px solid var(--lime);color:var(--lime);font-weight:700">
+              🇦🇷 Español
+            </button>
+            <button id="lang-en" class="btn btn-ghost btn-sm"
+              onclick="setAppLanguage('en')"
+              style="flex:1">
+              🇺🇸 English
+            </button>
+          </div>
+          <div id="lang-msg" style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;display:none"></div>
+        </div>
+
+        <div class="settings-section">
           <h3>Apariencia</h3>
           <div class="settings-row">
             <div><div class="settings-label">Modo de visualización</div><div class="settings-sub">Cambia entre modo oscuro y claro</div></div>
@@ -1142,6 +1169,27 @@ textarea { resize: vertical; min-height: 80px; }
         </div>
         <div class="settings-section">
           <h3>Cuenta</h3>
+          <!-- Nombre y apellido -->
+          <div class="settings-row" style="margin-bottom:6px">
+            <div>
+              <div class="settings-label">Nombre y apellido</div>
+              <div class="settings-sub" id="settings-current-name">—</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div class="form-group" style="flex:1;margin:0">
+              <label>Nombre</label>
+              <input type="text" id="edit-name" placeholder="Tu nombre" />
+            </div>
+            <div class="form-group" style="flex:1;margin:0">
+              <label>Apellido</label>
+              <input type="text" id="edit-surname" placeholder="Tu apellido" />
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="saveProfileName()" style="width:auto;margin-bottom:1.5rem">
+            Guardar nombre
+          </button>
+          <hr style="border:none;border-top:1px solid var(--border);margin-bottom:1.5rem">
           <div class="settings-row">
             <div><div class="settings-label">Email</div><div class="settings-sub" id="settings-current-email">—</div></div>
           </div>
@@ -2290,7 +2338,7 @@ function showUpgradeModal(featureName) { featureName = featureName || 'esta func
           FUNCIÓN PREMIUM
         </div>
         <div style="font-size:14px;color:var(--text-muted);margin-top:6px">
-          ${featureName} está disponible en el plan <strong style="color:var(--text)">Estándar</strong> o superior.
+          ${featureName} está disponible en el plan <strong style="color:var(--text)">Básico</strong> o superior.
         </div>
       </div>
       <div style="padding:1.2rem 1.5rem">
@@ -2298,7 +2346,7 @@ function showUpgradeModal(featureName) { featureName = featureName || 'esta func
           border:1px solid var(--border-lime)">
           <div style="font-size:11px;color:var(--lime);font-weight:700;text-transform:uppercase;
             letter-spacing:0.06em;margin-bottom:4px">Plan Básico</div>
-          <div style="font-size:1.4rem;font-weight:800;color:var(--text)">$3.999 <span style="font-size:11px;color:var(--text-muted)">/ USD 2,5</span><span style="font-size:13px;font-weight:400;color:var(--text-muted)">/mes</span></div>
+          <div style="font-size:1.4rem;font-weight:800;color:var(--text)">$2.999 <span style="font-size:11px;color:var(--text-muted)">/ USD 2</span><span style="font-size:13px;font-weight:400;color:var(--text-muted)">/mes</span></div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5">
             ✅ Rutinas ilimitadas<br>
             ✅ Biblioteca completa (168 ejercicios)<br>
@@ -2309,7 +2357,7 @@ function showUpgradeModal(featureName) { featureName = featureName || 'esta func
         <a href="https://mpago.la/1VdQ8vR" target="_blank"
           style="display:block;background:var(--lime);color:#000;border-radius:10px;padding:13px;
             font-weight:700;font-size:14px;text-decoration:none;margin-bottom:8px">
-          ⚡ Suscribirme — $3.999/mes
+          ⚡ Suscribirme — $2.999/mes
         </a>
         <button onclick="document.getElementById('modal-upgrade').remove()"
           style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text-muted);
@@ -3157,8 +3205,9 @@ function deleteHistory(id){if(!confirm('¿Eliminar?'))return;const d=getUserData
 function renderAnamnesis(){
   const uid = currentUser ? currentUser.uid : 'guest';
   const d = getUserData(uid);
-  // Bloquear plan free
-  if(!d.plan || d.plan === 'free') {
+  // Bloquear plan free y básico (anamnesis solo desde Estándar)
+  const _plan = getPlan();
+  if(_plan === 'free' || _plan === 'basic') {
     document.getElementById('page-anamnesis').innerHTML = '<div class="section-header"><h2 class="section-title">Anamnesis Deportiva</h2></div>' +
       '<div style="text-align:center;padding:3rem 1rem">' +
         '<div style="font-size:3.5rem;margin-bottom:1rem">🔒</div>' +
@@ -3167,8 +3216,8 @@ function renderAnamnesis(){
           'Al activar cualquier plan pago, se revisará tu ficha para diseñar tu entrenamiento y adaptar cada sesión a tus objetivos.' +
         '</div>' +
         '<div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:1.5rem;border-left:3px solid var(--lime);text-align:left;max-width:300px;margin-left:auto;margin-right:auto">' +
-          '<div style="font-size:11px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Incluido en todos los planes pagos</div>' +
-          '<div style="font-size:12px;color:var(--text-muted)">✅ Plan Estándar · $35.000/mes<br>✅ Coaching Pro · $84.999/mes<br>✅ Premium · $149.999/mes</div>' +
+          '<div style="font-size:11px;font-weight:700;color:var(--lime);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Disponible desde el plan Estándar</div>' +
+          '<div style="font-size:12px;color:var(--text-muted)">✅ Estándar · $35.000/mes<br>✅ Coaching Pro · $84.999/mes<br>✅ Premium · $149.999/mes</div>' +
         '</div>' +
         '<button onclick="navigateTo(\'coaching\')" style="background:var(--lime);color:#000;font-weight:800;font-size:14px;padding:13px 28px;border-radius:12px;border:none;cursor:pointer;width:100%;max-width:280px">' +
           'Ver planes y activar →' +
@@ -3230,7 +3279,7 @@ function saveAnamnesis(){
   const uid = currentUser ? currentUser.uid : 'guest';
   const d = getUserData(uid);
   if(!d.plan || d.plan === 'free') {
-    alert('⚠️ La anamnesis está disponible a partir del Plan Estándar. Contactá a Franco para activar tu plan.');
+    alert('⚠️ La anamnesis está disponible a partir del Plan Básico. Contactá a Franco para activar tu plan.');
     return;
   }
 
@@ -3313,9 +3362,15 @@ function saveAnamnesis(){
 // ═══════════════════════════════════
 function renderSettings(){
   const uid = currentUser ? currentUser.uid : 'guest';
-  const d=getUserData(uid);
+  const d = window._userData || getUserData(uid);
   const users=getUsers();
-  document.getElementById('settings-current-email').textContent=users[uid]?.email||'—';
+  document.getElementById('settings-current-email').textContent = currentUser?.email || users[uid]?.email || '—';
+  // Mostrar nombre actual
+  const nameEl = document.getElementById('settings-current-name');
+  if(nameEl) {
+    const fullName = (currentUser?.name||'') + (currentUser?.surname ? ' '+currentUser.surname : '');
+    nameEl.textContent = fullName || '—';
+  }
   const theme=d.settings?.theme||'dark';
   document.getElementById('theme-dark').classList.toggle('active',theme==='dark');
   document.getElementById('theme-light').classList.toggle('active',theme==='light');
@@ -3385,6 +3440,77 @@ function changePassword(){
     msgEl.className='ok-msg'; msgEl.textContent='✅ Contraseña cambiada correctamente.';
     ['old-pass','new-pass','new-pass2'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   }
+}
+
+function setAppLanguage(lang) {
+  const uid = currentUser ? currentUser.uid : 'guest';
+  const d = window._userData || getUserData(uid);
+  if(!d.settings) d.settings = {};
+  d.settings.language = lang;
+  window._userData = d;
+  setUserData(uid, d);
+  const btnEs = document.getElementById('lang-es');
+  const btnEn = document.getElementById('lang-en');
+  if(btnEs) { btnEs.style.borderColor = lang==='es'?'var(--lime)':'var(--border)'; btnEs.style.color = lang==='es'?'var(--lime)':'var(--text-muted)'; btnEs.style.fontWeight = lang==='es'?'700':'400'; }
+  if(btnEn) { btnEn.style.borderColor = lang==='en'?'var(--lime)':'var(--border)'; btnEn.style.color = lang==='en'?'var(--lime)':'var(--text-muted)'; btnEn.style.fontWeight = lang==='en'?'700':'400'; }
+  const msgEl = document.getElementById('lang-msg');
+  if(lang === 'en') {
+    if(msgEl) { msgEl.style.display='block'; msgEl.textContent='⚠️ English translation coming soon. Some sections may still appear in Spanish.'; }
+    _applyLanguage('en');
+  } else {
+    if(msgEl) msgEl.style.display='none';
+    _applyLanguage('es');
+  }
+  showToast(lang==='en' ? '🇺🇸 English selected' : '🇦🇷 Español seleccionado');
+}
+
+const _TRANSLATIONS = {
+  es: { 'Inicio':'Inicio','Entrenamientos':'Entrenamientos','Entrenar':'Entrenar','Registro Cargas':'Registro Cargas','Historial':'Historial','Anamnesis':'Anamnesis','Biblioteca':'Biblioteca','Progresión':'Progresión','Plantillas':'Plantillas','Mi Coach':'Mi Coach','Ajustes':'Ajustes','Salir':'Salir' },
+  en: { 'Inicio':'Home','Entrenamientos':'Workouts','Entrenar':'Train','Registro Cargas':'Load Tracker','Historial':'History','Anamnesis':'Health Form','Biblioteca':'Exercise Library','Progresión':'Progress','Plantillas':'Templates','Mi Coach':'My Coach','Ajustes':'Settings','Salir':'Sign out' }
+};
+
+function _applyLanguage(lang) {
+  const t = _TRANSLATIONS[lang] || _TRANSLATIONS['es'];
+  document.querySelectorAll('.nav-label, .bnav-label').forEach(function(el) {
+    var orig = el.dataset.orig || el.textContent.trim();
+    el.dataset.orig = orig;
+    el.textContent = t[orig] || orig;
+  });
+  document.querySelectorAll('.section-title').forEach(function(el) {
+    var orig = el.dataset.orig || el.textContent.trim();
+    el.dataset.orig = orig;
+    el.textContent = t[orig] || orig;
+  });
+}
+
+function saveProfileName() {
+  const name    = document.getElementById('edit-name')?.value.trim();
+  const surname = document.getElementById('edit-surname')?.value.trim();
+  if(!name) { showToast('⚠️ Ingresá tu nombre'); return; }
+  const uid = currentUser.uid;
+  currentUser.name        = name;
+  currentUser.surname     = surname || '';
+  currentUser.displayName = name + (surname ? ' ' + surname : '');
+  const d = window._userData || getUserData(uid);
+  d.name    = name;
+  d.surname = surname || '';
+  window._userData = d;
+  setUserData(uid, d);
+  if(window._fb && window._fb.updateDisplayName) {
+    window._fb.updateDisplayName(currentUser.displayName).catch(e => console.warn('updateDisplayName:', e));
+  }
+  const nameDisplay = document.getElementById('settings-current-name');
+  if(nameDisplay) nameDisplay.textContent = currentUser.displayName;
+  const inputN = document.getElementById('edit-name');
+  const inputS = document.getElementById('edit-surname');
+  if(inputN) inputN.value = '';
+  if(inputS) inputS.value = '';
+  const initials = (name[0] + (surname ? surname[0] : name[1]||'')).toUpperCase();
+  const avatarEl = document.getElementById('top-avatar');
+  if(avatarEl && !avatarEl.querySelector('img')) avatarEl.textContent = initials;
+  const greetEl = document.getElementById('dash-greeting');
+  if(greetEl) greetEl.textContent = 'Hola, ' + name + ' 💪';
+  showToast('✅ Nombre actualizado');
 }
 
 function changeEmail(){
@@ -6318,7 +6444,7 @@ function renderLibrary() {
   if(isFree()) {
     const existingBanner = document.getElementById('lib-free-banner');
     if(!existingBanner) {
-      const banner = showLimitBanner('Plan gratuito: acceso a 20 ejercicios. Desbloqueá los 168 completos con el Plan Estándar.');
+      const banner = showLimitBanner('Plan gratuito: acceso a 6 ejercicios por grupo. Desbloqueá los 168 completos con el Plan Básico.');
       banner.id = 'lib-free-banner';
       banner.style.marginBottom = '12px';
       const grid = document.getElementById('lib-grid');
@@ -6395,6 +6521,16 @@ function renderLibGrid(exercises) {
       </div>`;
     });
   });
+  // Tile de bloqueo al final si el plan free llegó al límite
+  if(freeLimitReached) {
+    html += '<div onclick="showUpgradeModal()" '
+      + 'style="background:var(--surface2);border:2px dashed var(--border-lime);border-radius:12px;'
+      + 'padding:1.5rem;text-align:center;cursor:pointer;margin-top:8px;grid-column:1/-1">'
+      + '<div style="font-size:1.5rem;margin-bottom:6px">🔒</div>'
+      + '<div style="font-size:13px;font-weight:700;color:var(--lime)">+' + hiddenLibCount + ' ejercicios bloqueados</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);margin-top:4px">Disponibles en el Plan Básico</div>'
+      + '</div>';
+  }
   grid.innerHTML = html;
 }
 
@@ -7040,7 +7176,7 @@ function _renderPlanCards() {
       border: 'var(--border)',
       icon: '⚪',
       features: [
-        { ok: true,  text: '1 entrenamiento creado' },
+        { ok: true,  text: 'Creación de 1 entrenamiento' },
         { ok: true,  text: '6 ejercicios por grupo muscular' },
         { ok: true,  text: 'Historial últimas 3 sesiones' },
         { ok: true,  text: '3 plantillas por bloque' },
@@ -7056,8 +7192,8 @@ function _renderPlanCards() {
     {
       id: 'basic',
       name: 'Básico',
-      price_ars: '$3.999',
-      price_usd: 'USD 2,5',
+      price_ars: '$2.999',
+      price_usd: 'USD 2',
       color: '#C8E63A',
       bg: 'rgba(200,230,58,0.06)',
       border: '#C8E63A',
@@ -7068,9 +7204,9 @@ function _renderPlanCards() {
         { ok: true,  text: 'Historial completo' },
         { ok: true,  text: 'Todas las plantillas' },
         { ok: false, text: 'Acceso a coach' },
+        { ok: false, text: 'Anamnesis deportiva' },
         { ok: false, text: 'Videollamada con el coach' },
         { ok: false, text: 'Chat de soporte' },
-        { ok: false, text: 'Anamnesis deportiva' },
       ],
       mp_link: 'https://mpago.la/1VdQ8vR',
       cta: 'Suscribirme',
