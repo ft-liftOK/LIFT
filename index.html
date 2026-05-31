@@ -1880,7 +1880,7 @@ function renderRoutines(){
       </div>
       <div class="routine-actions">
         <button class="btn btn-ghost btn-sm" onclick="viewRoutine('${r.id}')">👁 Ver</button>
-        <button class="btn btn-ghost btn-sm" onclick="editRoutine('${r.id}')">✏️ Editar</button>
+        ${(!isFree() || !r.fromTemplate) ? `<button class="btn btn-ghost btn-sm" onclick="editRoutine('${r.id}')">✏️ Editar</button>` : ''}
         <button class="btn btn-primary btn-sm" onclick="startWorkout('${r.id}')">⚡ Entrenar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRoutine('${r.id}')">🗑️</button>
       </div>
@@ -1891,7 +1891,7 @@ function openRoutineEditor(id=null){
   // Plan free: máximo 2 rutinas (solo bloquear al crear, no al editar)
   if(!id && isFree()) {
     const _d = window._userData || getUserData(currentUser.uid);
-    if((_d.routines||[]).length >= 2) {
+    if((_d.routines||[]).length >= 1) {
       showUpgradeModal('Rutinas ilimitadas');
       return;
     }
@@ -2342,7 +2342,7 @@ function saveRoutine(){
     // Límite plan free: máximo 2 rutinas
     if(isFree() && !editingRoutineId) {
       const d = window._userData || getUserData(currentUser.uid);
-      if((d.routines||[]).length >= 2) {
+      if((d.routines||[]).length >= 1) {
         showUpgradeModal('Rutinas ilimitadas');
         return;
       }
@@ -7040,7 +7040,7 @@ function _renderPlanCards() {
       border: 'var(--border)',
       icon: '⚪',
       features: [
-        { ok: true,  text: 'Hasta 2 rutinas guardadas' },
+        { ok: true,  text: '1 entrenamiento creado' },
         { ok: true,  text: '6 ejercicios por grupo muscular' },
         { ok: true,  text: 'Historial últimas 3 sesiones' },
         { ok: true,  text: '3 plantillas por bloque' },
